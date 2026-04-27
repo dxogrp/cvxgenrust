@@ -1,0 +1,23 @@
+# Rust
+target/
+
+# Python
+.venv
+dist
+build
+.pytest_cache
+__pycache__/
+*.pyc
+.ipynb_checkpoints
+
+# MacOS
+.DS_Store
+
+# Marimo
+__marimo__/
+
+# Ignore generated code examples
+examples/*_cgr/
+
+# Codex
+.codex

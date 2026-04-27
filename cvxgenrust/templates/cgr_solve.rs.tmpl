@@ -1,0 +1,14 @@
+__HEADER__
+
+use __MODULE_NAME__::CGRProblem;
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let mut problem = CGRProblem::new();
+__PARAM_SETUP__
+
+    let solution = __SOLVE_CALL__;
+    println!("status = {}", solution.status);
+    println!("objective = {}", solution.obj_val);__VARIABLE_READBACK__
+
+    Ok(())
+}

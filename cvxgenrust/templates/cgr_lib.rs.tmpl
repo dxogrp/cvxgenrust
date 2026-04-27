@@ -1,0 +1,85 @@
+__RUNTIME_RS__
+
+static PARAMETERS: [ParameterInfo; __PARAMETER_COUNT__] = [
+    __PARAMETERS__
+];
+
+static VARIABLES: [VariableInfo; __VARIABLE_COUNT__] = [
+    __VARIABLES__
+];
+
+pub struct CGRProblem {
+    parameter_values: Vec<f64>,
+}
+
+impl Default for CGRProblem {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl CGRProblem {
+    pub fn new() -> Self {
+        Self {
+            parameter_values: vec![0.0; __PARAMETER_VEC_LEN_MINUS_ONE__usize],
+        }
+    }
+
+    pub fn parameter_info(&self) -> &'static [ParameterInfo] {
+        &PARAMETERS
+    }
+
+    pub fn variable_info(&self) -> &'static [VariableInfo] {
+        &VARIABLES
+    }
+
+    pub fn parameter_vector(&self) -> Vec<f64> {
+        let mut out = self.parameter_values.clone();
+        out.push(1.0);
+        out
+    }
+
+    pub fn set_parameter(&mut self, name: &str, value: &[f64]) -> Result<(), RuntimeError> {
+        let parameter = PARAMETERS
+            .iter()
+            .find(|parameter| parameter.name == name)
+            .ok_or_else(|| RuntimeError::UnknownParameter(name.to_owned()))?;
+
+        if value.len() != parameter.size {
+            return Err(RuntimeError::DimensionMismatch {
+                expected: parameter.size,
+                actual: value.len(),
+                name: "parameter",
+            });
+        }
+
+        let start = parameter.offset;
+        let end = start + parameter.size;
+        self.parameter_values[start..end].copy_from_slice(value);
+        Ok(())
+    }
+
+__CANONICAL_METHOD__
+
+__SOLVE_METHOD__
+
+    pub fn extract_variable(&self, name: &str, solution: &[f64]) -> Result<Vec<f64>, RuntimeError> {
+        let variable = VARIABLES
+            .iter()
+            .find(|variable| variable.name == name)
+            .ok_or_else(|| RuntimeError::UnknownVariable(name.to_owned()))?;
+
+        if solution.len() < variable.offset + variable.size {
+            return Err(RuntimeError::DimensionMismatch {
+                expected: variable.offset + variable.size,
+                actual: solution.len(),
+                name: "solution",
+            });
+        }
+
+        Ok(solution[variable.offset..variable.offset + variable.size].to_vec())
+    }
+
+__PARAM_SETTERS____VARIABLE_GETTERS__}
+
+__FFI_METHODS__

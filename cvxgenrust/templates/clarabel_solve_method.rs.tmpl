@@ -1,0 +1,52 @@
+    pub fn solve(&self) -> Result<SolveResult, RuntimeError> {
+        use clarabel::algebra::CscMatrix as ClarabelCscMatrix;
+        use clarabel::solver::{DefaultSettings, DefaultSolver, IPSolver, SupportedConeT};
+
+        let canonical = self.canonical_cone_prob()?;
+
+        let p = ClarabelCscMatrix::new(
+            canonical.p.rows,
+            canonical.p.cols,
+            canonical.p.indptr.clone(),
+            canonical.p.indices.clone(),
+            canonical.p.data.clone(),
+        );
+        let a = ClarabelCscMatrix::new(
+            canonical.a.rows,
+            canonical.a.cols,
+            canonical.a.indptr.clone(),
+            canonical.a.indices.clone(),
+            canonical.a.data.clone(),
+        );
+
+        let mut cones = Vec::new();
+__CONE_PUSH_CODE__
+
+        let mut settings = DefaultSettings::default();
+        settings.verbose = false;
+
+        let mut solver = DefaultSolver::new(
+            &p,
+            &canonical.c,
+            &a,
+            &canonical.b,
+            &cones,
+            settings,
+        )
+        .map_err(|error| RuntimeError::Solver(format!("failed to initialize Clarabel solver: {error}")))?;
+        solver.solve();
+
+        let solution = &solver.solution;
+        Ok(SolveResult {
+            x: solution.x.clone(),
+            z: solution.z.clone(),
+            s: solution.s.clone(),
+            status: format!("{:?}", solution.status),
+            obj_val: solution.obj_val + canonical.objective_offset,
+            obj_val_dual: solution.obj_val_dual + canonical.objective_offset,
+            solve_time: solution.solve_time,
+            iterations: solution.iterations,
+            r_prim: solution.r_prim,
+            r_dual: solution.r_dual,
+        })
+    }

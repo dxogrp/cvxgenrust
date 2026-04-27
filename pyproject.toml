@@ -1,0 +1,20 @@
+[project]
+name = "cvxgenrust"
+version = "0.1.0"
+description = "Embedded Rust code generation for CVXPY"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "cvxpy>=1.7",
+    "numpy>=1.26",
+    "scipy>=1.13",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+]

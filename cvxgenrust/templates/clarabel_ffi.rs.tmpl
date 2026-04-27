@@ -1,0 +1,139 @@
+use std::ffi::{c_char, CString};
+use std::ptr;
+
+#[repr(C)]
+pub struct FfiSolveResult {
+    pub code: i32,
+    pub status: *mut c_char,
+    pub message: *mut c_char,
+    pub x_ptr: *mut f64,
+    pub x_len: usize,
+    pub z_ptr: *mut f64,
+    pub z_len: usize,
+    pub s_ptr: *mut f64,
+    pub s_len: usize,
+    pub obj_val: f64,
+    pub obj_val_dual: f64,
+    pub solve_time: f64,
+    pub iterations: u32,
+    pub r_prim: f64,
+    pub r_dual: f64,
+}
+
+fn ffi_string(value: String) -> *mut c_char {
+    CString::new(value)
+        .unwrap_or_else(|_| CString::new("invalid string").expect("valid fallback CString"))
+        .into_raw()
+}
+
+fn ffi_vec(mut value: Vec<f64>) -> (*mut f64, usize) {
+    let ptr = value.as_mut_ptr();
+    let len = value.len();
+    std::mem::forget(value);
+    (ptr, len)
+}
+
+fn ffi_error(message: String) -> FfiSolveResult {
+    FfiSolveResult {
+        code: 1,
+        status: ptr::null_mut(),
+        message: ffi_string(message),
+        x_ptr: ptr::null_mut(),
+        x_len: 0,
+        z_ptr: ptr::null_mut(),
+        z_len: 0,
+        s_ptr: ptr::null_mut(),
+        s_len: 0,
+        obj_val: 0.0,
+        obj_val_dual: 0.0,
+        solve_time: 0.0,
+        iterations: 0,
+        r_prim: 0.0,
+        r_dual: 0.0,
+    }
+}
+
+fn ffi_success(solution: SolveResult) -> FfiSolveResult {
+    let (x_ptr, x_len) = ffi_vec(solution.x);
+    let (z_ptr, z_len) = ffi_vec(solution.z);
+    let (s_ptr, s_len) = ffi_vec(solution.s);
+
+    FfiSolveResult {
+        code: 0,
+        status: ffi_string(solution.status),
+        message: ptr::null_mut(),
+        x_ptr,
+        x_len,
+        z_ptr,
+        z_len,
+        s_ptr,
+        s_len,
+        obj_val: solution.obj_val,
+        obj_val_dual: solution.obj_val_dual,
+        solve_time: solution.solve_time,
+        iterations: solution.iterations,
+        r_prim: solution.r_prim,
+        r_dual: solution.r_dual,
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cvxgenrust_solve(
+    parameter_vec_ptr: *const f64,
+    parameter_vec_len: usize,
+) -> FfiSolveResult {
+    if parameter_vec_ptr.is_null() {
+        return ffi_error("received null parameter pointer".to_string());
+    }
+
+    let parameter_vec = unsafe { std::slice::from_raw_parts(parameter_vec_ptr, parameter_vec_len) };
+    if parameter_vec_len != __PARAMETER_VEC_LEN__ {
+        return ffi_error(format!(
+            "parameter vector length mismatch: expected {}, got {}",
+            __PARAMETER_VEC_LEN__, parameter_vec_len
+        ));
+    }
+
+    let mut problem = CGRProblem::new();
+    problem
+        .parameter_values
+        .copy_from_slice(&parameter_vec[..__PARAMETER_VEC_LEN_MINUS_ONE__]);
+
+    match problem.solve() {
+        Ok(solution) => ffi_success(solution),
+        Err(error) => ffi_error(error.to_string()),
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cvxgenrust_free_result(result: *mut FfiSolveResult) {
+    if result.is_null() {
+        return;
+    }
+
+    let result = unsafe { &mut *result };
+
+    if !result.status.is_null() {
+        let _ = unsafe { CString::from_raw(result.status) };
+        result.status = ptr::null_mut();
+    }
+    if !result.message.is_null() {
+        let _ = unsafe { CString::from_raw(result.message) };
+        result.message = ptr::null_mut();
+    }
+    if !result.x_ptr.is_null() {
+        let _ = unsafe { Vec::from_raw_parts(result.x_ptr, result.x_len, result.x_len) };
+        result.x_ptr = ptr::null_mut();
+        result.x_len = 0;
+    }
+    if !result.z_ptr.is_null() {
+        let _ = unsafe { Vec::from_raw_parts(result.z_ptr, result.z_len, result.z_len) };
+        result.z_ptr = ptr::null_mut();
+        result.z_len = 0;
+    }
+    if !result.s_ptr.is_null() {
+        let _ = unsafe { Vec::from_raw_parts(result.s_ptr, result.s_len, result.s_len) };
+        result.s_ptr = ptr::null_mut();
+        result.s_len = 0;
+    }
+}

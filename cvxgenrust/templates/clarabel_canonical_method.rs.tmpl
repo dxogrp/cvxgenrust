@@ -1,0 +1,35 @@
+    pub fn canonical_cone_prob(&self) -> Result<CanonicalConeQp, RuntimeError> {
+        __P_REDUCED__
+        __P_PATTERN__
+        let p_map = AffineCscMap {
+            reduced: p_reduced,
+            pattern: p_pattern,
+        };
+
+        __A_REDUCED__
+        __A_PATTERN__
+        let a_map = AffineOffsetCscMap {
+            reduced: a_reduced,
+            pattern: a_pattern,
+        };
+
+        __Q_REDUCED__
+        let c_map = AffineVectorMap {
+            reduced: c_reduced,
+            output_len: __Q_OUTPUT_LEN__usize,
+        };
+
+        let parameter_vector = self.parameter_vector();
+        let p = p_map.apply(&parameter_vector)?;
+        let (a, b) = a_map.apply(&parameter_vector)?;
+        let (c, objective_offset) = c_map.apply(&parameter_vector)?;
+
+        Ok(CanonicalConeQp {
+            p,
+            c,
+            objective_offset,
+            a: a.scaled(-1.0),
+            b,
+            cones: __CONE_DIMS__,
+        })
+    }

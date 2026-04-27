@@ -1,0 +1,220 @@
+__HEADER__
+
+from __future__ import annotations
+
+import ctypes
+import sys
+import subprocess
+import warnings
+from pathlib import Path
+from types import SimpleNamespace
+
+import cvxpy as cp
+from cvxpy.problems.problem import Problem, SolverStats
+from cvxpy.reductions.solvers.conic_solvers.clarabel_conif import CLARABEL
+
+PARAMETERS = [
+    __PARAMETER_ENTRIES__
+]
+
+VARIABLES = [
+    __VARIABLE_ENTRIES__
+]
+
+
+class CGRProblem:
+    def __init__(self):
+        self._values = {parameter["name"]: [0.0] * parameter["size"] for parameter in PARAMETERS}
+
+    @property
+    def rust_crate_dir(self) -> Path:
+        return Path(__file__).resolve().parent
+
+    def set_parameter(self, name: str, value) -> None:
+        parameter = next((item for item in PARAMETERS if item["name"] == name), None)
+        if parameter is None:
+            raise KeyError(f"unknown parameter `{name}`")
+        data = _flatten_parameter_value(value)
+        if len(data) != parameter["size"]:
+            raise ValueError(
+                f"parameter `{name}` expects {parameter['size']} values, got {len(data)}"
+            )
+        self._values[name] = data
+
+    def parameter_vector(self) -> list[float]:
+        out = [0.0] * __PARAMETER_VEC_LEN__
+        for parameter in PARAMETERS:
+            start = parameter["offset"]
+            end = start + parameter["size"]
+            out[start:end] = self._values[parameter["name"]]
+        out[-1] = 1.0
+        return out
+
+__PARAM_HELPERS__
+
+
+def _flatten_parameter_value(value) -> list[float]:
+    try:
+        import numpy as np
+        return np.asarray(value).flatten(order="F").tolist()
+    except Exception:
+        if isinstance(value, (list, tuple)):
+            return list(value)
+        return [value]
+
+
+def _flatten_parameter(parameter) -> list[float]:
+    return _flatten_parameter_value(parameter.value)
+
+
+def _build_solver_library(crate_dir: Path, release: bool = False) -> Path:
+    target_dir = crate_dir / "target" / ("release" if release else "debug")
+    lib_name = "__LIB_NAME__"
+    if sys.platform.startswith("linux"):
+        library_path = target_dir / f"lib{lib_name}.so"
+    elif sys.platform == "darwin":
+        library_path = target_dir / f"lib{lib_name}.dylib"
+    elif sys.platform == "win32":
+        library_path = target_dir / f"{lib_name}.dll"
+    else:
+        raise RuntimeError(f"unsupported platform for generated solver library: {sys.platform}")
+
+    if library_path.exists():
+        return library_path
+
+    cmd = ["cargo", "build", "--lib"]
+    if release:
+        cmd.append("--release")
+    subprocess.run(cmd, cwd=crate_dir, check=True)
+    return library_path
+
+
+class _FfiSolveResult(ctypes.Structure):
+    _fields_ = [
+        ("code", ctypes.c_int32),
+        ("status", ctypes.c_void_p),
+        ("message", ctypes.c_void_p),
+        ("x_ptr", ctypes.POINTER(ctypes.c_double)),
+        ("x_len", ctypes.c_size_t),
+        ("z_ptr", ctypes.POINTER(ctypes.c_double)),
+        ("z_len", ctypes.c_size_t),
+        ("s_ptr", ctypes.POINTER(ctypes.c_double)),
+        ("s_len", ctypes.c_size_t),
+        ("obj_val", ctypes.c_double),
+        ("obj_val_dual", ctypes.c_double),
+        ("solve_time", ctypes.c_double),
+        ("iterations", ctypes.c_uint32),
+        ("r_prim", ctypes.c_double),
+        ("r_dual", ctypes.c_double),
+    ]
+
+
+def _load_solver_library(crate_dir: Path, release: bool = False):
+    library_path = _build_solver_library(crate_dir, release=release)
+    library = ctypes.CDLL(str(library_path))
+    library.cvxgenrust_solve.argtypes = [ctypes.POINTER(ctypes.c_double), ctypes.c_size_t]
+    library.cvxgenrust_solve.restype = _FfiSolveResult
+    library.cvxgenrust_free_result.argtypes = [ctypes.POINTER(_FfiSolveResult)]
+    library.cvxgenrust_free_result.restype = None
+    return library
+
+
+def _get_generated_problem(problem) -> CGRProblem:
+    generated_problem = getattr(problem, "_cgr_generated_problem", None)
+    if generated_problem is None:
+        generated_problem = CGRProblem()
+        setattr(problem, "_cgr_generated_problem", generated_problem)
+    return generated_problem
+
+
+def _sync_parameters(problem, updated_params=None) -> list[float]:
+    generated_problem = _get_generated_problem(problem)
+    allowed_names = {item["name"] for item in PARAMETERS}
+
+    if updated_params is None:
+        names_to_update = allowed_names
+    else:
+        names_to_update = set(updated_params)
+        unknown = sorted(names_to_update - allowed_names)
+        if unknown:
+            raise KeyError(f"unknown updated_params entries: {', '.join(unknown)}")
+
+    for parameter in problem.parameters():
+        name = parameter.name()
+        if name in names_to_update:
+            generated_problem.set_parameter(name, _flatten_parameter(parameter))
+
+    return generated_problem.parameter_vector()
+
+
+def _decode_c_string(ptr_value) -> str | None:
+    if not ptr_value:
+        return None
+    return ctypes.cast(ptr_value, ctypes.c_char_p).value.decode("utf-8")
+
+
+def _copy_array(ptr, length: int) -> list[float]:
+    if not ptr or length == 0:
+        return []
+    return [ptr[index] for index in range(length)]
+
+
+def _run_generated_rust_solver(problem, updated_params=None, verbose: bool = False, release: bool = False):
+    crate_dir = Path(__file__).resolve().parent
+    library = _load_solver_library(crate_dir, release=release)
+    parameter_vector = _sync_parameters(problem, updated_params=updated_params)
+    data = (ctypes.c_double * len(parameter_vector))(*parameter_vector)
+    result = library.cvxgenrust_solve(data, len(parameter_vector))
+    try:
+        if result.code != 0:
+            message = _decode_c_string(result.message) or "generated Rust solver failed"
+            raise RuntimeError(message)
+        if verbose:
+            print(f"generated Rust solver status: {_decode_c_string(result.status)}")
+        return SimpleNamespace(
+            status=_decode_c_string(result.status),
+            solve_time=result.solve_time,
+            iterations=result.iterations,
+            obj_val=result.obj_val,
+            obj_val_dual=result.obj_val_dual,
+            r_prim=result.r_prim,
+            r_dual=result.r_dual,
+            x=_copy_array(result.x_ptr, result.x_len),
+            z=_copy_array(result.z_ptr, result.z_len),
+            s=_copy_array(result.s_ptr, result.s_len),
+        )
+    finally:
+        library.cvxgenrust_free_result(ctypes.byref(result))
+
+
+class GeneratedRustClarabel(CLARABEL):
+    def name(self):
+        return "__SOLVER_METHOD_NAME__"
+
+
+def cgr_solve(problem, warm_start: bool = True, verbose: bool = False, **kwargs):
+    solver = GeneratedRustClarabel()
+    if warm_start:
+        warnings.warn(
+            "warm_start is accepted for API compatibility but is not used by the generated Rust solver",
+            stacklevel=2,
+        )
+    release = bool(kwargs.pop("release", False))
+    updated_params = kwargs.pop("updated_params", None)
+    _, chain, inverse_data = problem.get_problem_data(
+        cp.CLARABEL,
+        solver_opts=kwargs,
+    )
+    rust_result = _run_generated_rust_solver(
+        problem,
+        updated_params=updated_params,
+        verbose=verbose,
+        release=release,
+    )
+    problem.unpack_results(rust_result, chain, inverse_data)
+    problem._solver_stats = SolverStats.from_dict(problem._solution.attr, solver.name())
+    return problem.value
+
+
+def register_solve_method(name: str = "__SOLVER_METHOD_NAME__") -> None:
+    Problem.register_solve(name, cgr_solve)
