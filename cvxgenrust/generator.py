@@ -417,7 +417,7 @@ def _render_generated_lib(spec: ProblemSpec, generated_at: str) -> str:
     return _fill_template(
         _load_template("cgr_lib.rs.tmpl"),
         RUNTIME_RS=_fill_template(
-            _load_template("runtime.rs"),
+            _load_template("runtime.rs.tmpl"),
             HEADER=_generated_header(
                 "//",
                 "Rust runtime support",
@@ -554,7 +554,7 @@ See `examples/solve.py` for the matching generated usage example.
 
 def _render_generated_init(spec: ProblemSpec, generated_at: str) -> str:
     return _fill_template(
-        _load_template("cgr___init__.py"),
+        _load_template("cgr___init__.py.tmpl"),
         HEADER=_generated_header(
             "#",
             "Python package re-export",
