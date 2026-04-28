@@ -17,7 +17,7 @@ __pycache__/
 __marimo__/
 
 # Ignore generated code examples
-examples/*_cgr/
+examples/
 
 # Codex
 .codex
