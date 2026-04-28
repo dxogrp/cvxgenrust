@@ -21,6 +21,7 @@ VARIABLES = [
     __VARIABLE_ENTRIES__
 ]
 
+DEFAULT_RELEASE_BUILD = True
 _LIBRARY_CACHE: dict[tuple[str, bool], object] = {}
 
 
@@ -69,7 +70,7 @@ def _flatten_parameter(parameter) -> list[float]:
     return _flatten_parameter_value(parameter.value)
 
 
-def _build_solver_library(crate_dir: Path, release: bool = False) -> Path:
+def _build_solver_library(crate_dir: Path, release: bool = DEFAULT_RELEASE_BUILD) -> Path:
     target_dir = crate_dir / "target" / ("release" if release else "debug")
     lib_name = "__LIB_NAME__"
     if sys.platform.startswith("linux"):
@@ -111,7 +112,7 @@ class _FfiSolveResult(ctypes.Structure):
     ]
 
 
-def _load_solver_library(crate_dir: Path, release: bool = False):
+def _load_solver_library(crate_dir: Path, release: bool = DEFAULT_RELEASE_BUILD):
     library_path = _build_solver_library(crate_dir, release=release)
     cache_key = (str(library_path), bool(release))
     cached_library = _LIBRARY_CACHE.get(cache_key)
@@ -191,7 +192,12 @@ def _copy_array(ptr, length: int) -> list[float]:
     return [ptr[index] for index in range(length)]
 
 
-def _run_generated_rust_solver(problem, updated_params=None, verbose: bool = False, release: bool = False):
+def _run_generated_rust_solver(
+    problem,
+    updated_params=None,
+    verbose: bool = False,
+    release: bool = DEFAULT_RELEASE_BUILD,
+):
     crate_dir = Path(__file__).resolve().parent
     library = _load_solver_library(crate_dir, release=release)
     parameter_vector = _sync_parameters(problem, updated_params=updated_params)
@@ -231,7 +237,7 @@ def cgr_solve(problem, warm_start: bool = True, verbose: bool = False, **kwargs)
             "warm_start is accepted for API compatibility but is not used by the generated Rust solver",
             stacklevel=2,
         )
-    release = bool(kwargs.pop("release", False))
+    release = bool(kwargs.pop("release", DEFAULT_RELEASE_BUILD))
     updated_params = kwargs.pop("updated_params", None)
     chain, inverse_data = _get_cached_reduction(problem, kwargs)
     rust_result = _run_generated_rust_solver(
@@ -249,7 +255,7 @@ def register_solve_method(
     name: str = "__SOLVER_METHOD_NAME__",
     *,
     preload: bool = True,
-    release: bool = False,
+    release: bool = DEFAULT_RELEASE_BUILD,
 ) -> None:
     if preload:
         crate_dir = Path(__file__).resolve().parent
