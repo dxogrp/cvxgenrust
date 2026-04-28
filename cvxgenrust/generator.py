@@ -454,7 +454,7 @@ def _render_generated_cargo(crate_name: str, generated_at: str) -> str:
     )
 
 
-def _render_generated_readme(spec: ProblemSpec, generated_at: str) -> str:
+def _render_generated_readme(spec: ProblemSpec, package_name: str, generated_at: str) -> str:
     parameter_lines = "\n".join(
         f"- `{parameter.name}`: shape={parameter.shape}, size={parameter.size}, offset={parameter.offset}"
         for parameter in spec.parameters
@@ -499,34 +499,23 @@ cargo run --example solve
     ).strip()
     python_usage = _fill_template(
         """```python
+# Assume `problem` and the listed CVXPY parameters/variables are already defined.
 import numpy as np
-import __PACKAGE_NAME__ as cgr
-from __PROBLEM_MODULE__ import (
-    __PROBLEM_IMPORTS__
-)
+from __PACKAGE_NAME__.cgr_solver import cgr_solve
 
-cgr.register_solve_method()
+problem.register_solve("CGR", cgr_solve)
 __PARAM_ASSIGNMENTS__
 
 problem.solve(
-    method="__SOLVER_METHOD_NAME__",
+    method="CGR",
     updated_params=[
         __UPDATED_PARAMS__
-    ],
-    warm_start=False,
+    ]
 )
 print(problem.status)
 ```
-
-The Python wrapper builds and loads the generated Rust shared library
-in-process via `ctypes`. See `examples/solve.py` for the matching
-generated usage example.
 """,
-        PACKAGE_NAME=spec.module_name + "_cgr",
-        PROBLEM_MODULE=spec.module_name,
-        PROBLEM_IMPORTS=",\n    ".join(
-            ["problem", *[parameter.name for parameter in spec.parameters], *[variable.name for variable in spec.variables]]
-        ),
+        PACKAGE_NAME=package_name,
         PARAM_ASSIGNMENTS="\n".join(
             f"{parameter.name}.value = "
             + (
@@ -536,7 +525,6 @@ generated usage example.
             )
             for parameter in spec.parameters
         ),
-        SOLVER_METHOD_NAME=f"{spec.module_name}_cgr",
         UPDATED_PARAMS=",\n        ".join(repr(parameter.name) for parameter in spec.parameters),
     ).strip()
     return _fill_template(
@@ -550,18 +538,6 @@ generated usage example.
         VARIABLE_LINES=variable_lines,
         RUST_USAGE=rust_usage,
         PYTHON_USAGE=python_usage,
-    )
-
-
-def _render_generated_init(spec: ProblemSpec, generated_at: str) -> str:
-    return _fill_template(
-        _load_template("cgr___init__.py.tmpl"),
-        HEADER=_generated_header(
-            "#",
-            "Python package re-export",
-            generated_at,
-            module_name=spec.module_name,
-        ),
     )
 
 
@@ -648,42 +624,6 @@ def _render_generated_rust_example(spec: ProblemSpec, generated_at: str) -> str:
     )
 
 
-def _render_generated_python_example(spec: ProblemSpec, package_name: str, generated_at: str) -> str:
-    import_names = ["problem", *[parameter.name for parameter in spec.parameters]]
-    if spec.variables:
-        import_names.extend(variable.name for variable in spec.variables)
-
-    param_value_setup = []
-    for parameter in spec.parameters:
-        shape = list(parameter.shape)
-        shape_literal = repr(tuple(shape)) if len(shape) != 1 else f"({shape[0]},)"
-        value_expr = "0.0" if parameter.size == 1 else f"np.zeros({shape_literal})"
-        param_value_setup.append(f"    {parameter.name}.value = {value_expr}")
-
-    variable_prints = []
-    for variable in spec.variables:
-        variable_prints.append(
-            f'    print("{variable.name} =", {variable.name}.value)'
-        )
-
-    return _fill_template(
-        _load_template("cgr_solve.py.tmpl"),
-        HEADER=_generated_header(
-            "#",
-            "Python CVXPY usage example",
-            generated_at,
-            module_name=spec.module_name,
-        ),
-        PACKAGE_NAME=package_name,
-        PROBLEM_MODULE=spec.module_name,
-        PROBLEM_IMPORTS=", ".join(import_names),
-        PARAM_VALUE_SETUP="\n".join(param_value_setup),
-        SOLVER_METHOD_NAME=f"{spec.module_name}_cgr",
-        UPDATED_PARAMS=", ".join(repr(parameter.name) for parameter in spec.parameters),
-        VARIABLE_PRINTS="\n".join(variable_prints),
-    )
-
-
 def generate_code(
     problem: cp.Problem,
     code_dir: str | Path = "generated_problem",
@@ -702,12 +642,9 @@ def generate_code(
     )
     (src_dir / "lib.rs").write_text(_render_generated_lib(spec, generated_at), encoding="utf-8")
     (output_dir / "README.md").write_text(
-        _render_generated_readme(spec, generated_at), encoding="utf-8"
+        _render_generated_readme(spec, output_dir.name, generated_at), encoding="utf-8"
     )
     (output_dir / "problem.json").unlink(missing_ok=True)
-    (output_dir / "__init__.py").write_text(
-        _render_generated_init(spec, generated_at), encoding="utf-8"
-    )
     (output_dir / "cgr_solver.py").write_text(
         _render_generated_python_wrapper(spec, generated_at), encoding="utf-8"
     )
@@ -715,9 +652,6 @@ def generate_code(
     examples_dir.mkdir(parents=True, exist_ok=True)
     (examples_dir / "solve.rs").write_text(
         _render_generated_rust_example(spec, generated_at), encoding="utf-8"
-    )
-    (examples_dir / "solve.py").write_text(
-        _render_generated_python_example(spec, output_dir.name, generated_at), encoding="utf-8"
     )
 
     bin_dir = src_dir / "bin"

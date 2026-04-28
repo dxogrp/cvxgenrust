@@ -10,7 +10,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import cvxpy as cp
-from cvxpy.problems.problem import Problem, SolverStats
+from cvxpy.problems.problem import SolverStats
 from cvxpy.reductions.solvers.conic_solvers.clarabel_conif import CLARABEL
 
 PARAMETERS = [
@@ -230,7 +230,7 @@ class GeneratedRustClarabel(CLARABEL):
         return "__SOLVER_METHOD_NAME__"
 
 
-def cgr_solve(problem, warm_start: bool = True, verbose: bool = False, **kwargs):
+def cgr_solve(problem, warm_start: bool = False, verbose: bool = False, **kwargs):
     solver = GeneratedRustClarabel()
     if warm_start:
         warnings.warn(
@@ -249,15 +249,3 @@ def cgr_solve(problem, warm_start: bool = True, verbose: bool = False, **kwargs)
     problem.unpack_results(rust_result, chain, inverse_data)
     problem._solver_stats = SolverStats.from_dict(problem._solution.attr, solver.name())
     return problem.value
-
-
-def register_solve_method(
-    name: str = "__SOLVER_METHOD_NAME__",
-    *,
-    preload: bool = True,
-    release: bool = DEFAULT_RELEASE_BUILD,
-) -> None:
-    if preload:
-        crate_dir = Path(__file__).resolve().parent
-        _load_solver_library(crate_dir, release=release)
-    Problem.register_solve(name, cgr_solve)
