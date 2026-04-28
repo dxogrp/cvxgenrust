@@ -24,38 +24,19 @@ class GeneratedCodeTestCase(unittest.TestCase):
         unique_name = f"{module_name}_{uuid.uuid4().hex[:8]}"
         tmpdir = tempfile.TemporaryDirectory()
         cgr.generate_code(problem, code_dir=tmpdir.name, module_name=unique_name)
-        init_path = Path(tmpdir.name) / "__init__.py"
+        solver_path = Path(tmpdir.name) / "cgr_solver.py"
         method_name = f"{unique_name}_cgr"
-        spec = importlib.util.spec_from_file_location(method_name, init_path)
+        spec = importlib.util.spec_from_file_location(method_name, solver_path)
         module = importlib.util.module_from_spec(spec)
         assert spec.loader is not None
         sys.modules[method_name] = module
         spec.loader.exec_module(module)
-        module.register_solve_method(method_name)
+        problem.register_solve(method_name, module.cgr_solve)
         return tmpdir, method_name, module
 
     def _clear_generated_module(self, tmpdir, method_name: str):
         sys.modules.pop(method_name, None)
         tmpdir.cleanup()
-
-    def _solve_with_generated_method(self, problem, module_name: str, variables):
-        cvxpy_value = problem.solve(solver=cp.CLARABEL)
-        cvxpy_solution = {
-            name: np.array(variable.value, copy=True) for name, variable in variables.items()
-        }
-
-        tmpdir, method_name, _module = self._load_generated_module(problem, module_name)
-        try:
-            generated_value = problem.solve(
-                method=method_name,
-                warm_start=False,
-            )
-        finally:
-            self._clear_generated_module(tmpdir, method_name)
-
-        self.assertAlmostEqual(float(cvxpy_value), float(generated_value), places=5)
-        for name, variable in variables.items():
-            self.assertTrue(np.allclose(cvxpy_solution[name], variable.value, atol=1e-4), msg=name)
 
     def _build_nonneg_ls_problem(self):
         m, n = 3, 2

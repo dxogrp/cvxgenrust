@@ -12,7 +12,7 @@ class NumericalTests(GeneratedCodeTestCase):
 
         tmpdir, method_name, _module = self._load_generated_module(fixture.problem, module_name)
         try:
-            generated_value = fixture.problem.solve(method=method_name, warm_start=False)
+            generated_value = fixture.problem.solve(method=method_name)
             generated_solution = {
                 name: np.array(variable.value, copy=True) for name, variable in fixture.variables.items()
             }
