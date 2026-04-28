@@ -12,7 +12,7 @@ from tests.support import GeneratedCodeTestCase
 
 class MetadataTests(GeneratedCodeTestCase):
     def test_extract_problem_metadata(self):
-        spec = extract_problem(self._build_problem(), module_name="nonneg_ls")
+        spec = extract_problem(self._build_nonneg_ls_problem().problem, module_name="nonneg_ls")
         self.assertEqual(spec.module_name, "nonneg_ls")
         self.assertEqual(spec.parameter_vec_len, 10)
         self.assertEqual([parameter.name for parameter in spec.parameters], ["A", "b"])
@@ -20,7 +20,7 @@ class MetadataTests(GeneratedCodeTestCase):
         self.assertEqual([variable.name for variable in spec.variables], ["x"])
 
     def test_generate_code_writes_crate(self):
-        problem = self._build_problem()
+        problem = self._build_nonneg_ls_problem().problem
         with tempfile.TemporaryDirectory() as tmpdir:
             package_version = tomllib.loads(
                 (Path(__file__).resolve().parent.parent / "pyproject.toml").read_text(encoding="utf-8")
