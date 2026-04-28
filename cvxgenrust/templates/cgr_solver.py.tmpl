@@ -21,6 +21,8 @@ VARIABLES = [
     __VARIABLE_ENTRIES__
 ]
 
+_LIBRARY_CACHE: dict[tuple[str, bool], object] = {}
+
 
 class CGRProblem:
     def __init__(self):
@@ -111,11 +113,17 @@ class _FfiSolveResult(ctypes.Structure):
 
 def _load_solver_library(crate_dir: Path, release: bool = False):
     library_path = _build_solver_library(crate_dir, release=release)
+    cache_key = (str(library_path), bool(release))
+    cached_library = _LIBRARY_CACHE.get(cache_key)
+    if cached_library is not None:
+        return cached_library
+
     library = ctypes.CDLL(str(library_path))
     library.cvxgenrust_solve.argtypes = [ctypes.POINTER(ctypes.c_double), ctypes.c_size_t]
     library.cvxgenrust_solve.restype = _FfiSolveResult
     library.cvxgenrust_free_result.argtypes = [ctypes.POINTER(_FfiSolveResult)]
     library.cvxgenrust_free_result.restype = None
+    _LIBRARY_CACHE[cache_key] = library
     return library
 
 
@@ -125,6 +133,30 @@ def _get_generated_problem(problem) -> CGRProblem:
         generated_problem = CGRProblem()
         setattr(problem, "_cgr_generated_problem", generated_problem)
     return generated_problem
+
+
+def _freeze_cache_value(value):
+    if isinstance(value, dict):
+        return tuple(sorted((key, _freeze_cache_value(item)) for key, item in value.items()))
+    if isinstance(value, (list, tuple)):
+        return tuple(_freeze_cache_value(item) for item in value)
+    if isinstance(value, set):
+        return tuple(sorted(_freeze_cache_value(item) for item in value))
+    return value
+
+
+def _get_cached_reduction(problem, solver_opts):
+    cache_key = _freeze_cache_value(solver_opts)
+    cached = getattr(problem, "_cgr_cached_reduction", None)
+    if cached is not None and cached[0] == cache_key:
+        return cached[1], cached[2]
+
+    _, chain, inverse_data = problem.get_problem_data(
+        cp.CLARABEL,
+        solver_opts=solver_opts,
+    )
+    setattr(problem, "_cgr_cached_reduction", (cache_key, chain, inverse_data))
+    return chain, inverse_data
 
 
 def _sync_parameters(problem, updated_params=None) -> list[float]:
@@ -201,10 +233,7 @@ def cgr_solve(problem, warm_start: bool = True, verbose: bool = False, **kwargs)
         )
     release = bool(kwargs.pop("release", False))
     updated_params = kwargs.pop("updated_params", None)
-    _, chain, inverse_data = problem.get_problem_data(
-        cp.CLARABEL,
-        solver_opts=kwargs,
-    )
+    chain, inverse_data = _get_cached_reduction(problem, kwargs)
     rust_result = _run_generated_rust_solver(
         problem,
         updated_params=updated_params,
@@ -216,5 +245,13 @@ def cgr_solve(problem, warm_start: bool = True, verbose: bool = False, **kwargs)
     return problem.value
 
 
-def register_solve_method(name: str = "__SOLVER_METHOD_NAME__") -> None:
+def register_solve_method(
+    name: str = "__SOLVER_METHOD_NAME__",
+    *,
+    preload: bool = True,
+    release: bool = False,
+) -> None:
+    if preload:
+        crate_dir = Path(__file__).resolve().parent
+        _load_solver_library(crate_dir, release=release)
     Problem.register_solve(name, cgr_solve)
