@@ -18,3 +18,7 @@ build-backend = "hatchling.build"
 dev = [
     "pytest>=8.3",
 ]
+examples = [
+    "marimo>=0.13",
+    "matplotlib>=3.9",
+]
