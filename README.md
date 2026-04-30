@@ -7,7 +7,7 @@ The generated crate reconstructs [Clarabel](https://clarabel.org/stable/) canoni
 
 This package is currently in an early stage of development, so the recommended setup is a development install.
 
-We use `uv` to manage dependencies.
+We use [uv](https://github.com/astral-sh/uv) to manage dependencies.
 Once you have installed uv you can perform a development install with:
 
 ```bash
