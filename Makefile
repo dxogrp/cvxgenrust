@@ -22,7 +22,7 @@ test: sync ## run the test suite
 .PHONY: marimo
 marimo: sync-examples ## open Marimo apps from the examples directory
 	@printf "$(BLUE)Opening Marimo examples...$(RESET)\n"
-	@uv run --group examples marimo edit examples
+	@cd examples && uv run --group examples marimo edit .
 
 .PHONY: clean
 clean: ## remove local build and test artifacts
