@@ -22,20 +22,20 @@ Generate a small nonnegative least-squares solver as a Rust crate:
 
 ```python
 import cvxpy as cp
-import cvxgenrust
+import cvxgenrust as cgr
 
 m, n = 3, 2
 x = cp.Variable(n, name="x")
 A = cp.Parameter((m, n), name="A")
 b = cp.Parameter(m, name="b")
 
-problem = cp.Problem(
+prob = cp.Problem(
     cp.Minimize(cp.sum_squares(A @ x - b)),
     [x >= 0],
 )
 
-project = cvxgenrust.generate_code(
-    problem,
+project = cgr.generate_code(
+    prob,
     code_dir="nnls_cgr",
     module_name="nnls",
 )
