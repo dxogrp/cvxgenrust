@@ -58,6 +58,17 @@ class NumericalTests(GeneratedCodeTestCase):
         self.assertAlmostEqual(float(generated_value), float(cvxpy_value), places=6)
         self.assertTrue(np.allclose(generated_solution["x"], cvxpy_solution["x"], atol=1e-5))
 
+    def test_sdp_matches_cvxpy_solution(self):
+        fixture = self._build_sdp_problem()
+        cvxpy_value, cvxpy_solution, generated_value, generated_solution = (
+            self._solve_with_cvxpy_and_generated(
+            fixture, "trace_sdp"
+            )
+        )
+
+        self.assertAlmostEqual(float(generated_value), float(cvxpy_value), places=6)
+        self.assertTrue(np.allclose(generated_solution["X"], cvxpy_solution["X"], atol=1e-5))
+
     def test_flow_problem_matches_cvxpy_solution(self):
         fixture = self._build_flow_problem()
         cvxpy_value, cvxpy_solution, generated_value, generated_solution = (

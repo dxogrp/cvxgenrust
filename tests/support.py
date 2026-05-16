@@ -87,6 +87,16 @@ class GeneratedCodeTestCase(unittest.TestCase):
             parameters={"A": A, "b": b, "rho": rho},
         )
 
+    def _build_sdp_problem(self):
+        X = cp.Variable((2, 2), symmetric=True, name="X")
+        C = cp.Parameter((2, 2), symmetric=True, name="C")
+        problem = cp.Problem(
+            cp.Minimize(cp.sum(cp.multiply(C, X))),
+            [X >> 0, cp.trace(X) == 1],
+        )
+        C.value = np.array([[1.0, 0.25], [0.25, 3.0]])
+        return ProblemFixture(problem=problem, variables={"X": X}, parameters={"C": C})
+
     def _build_flow_problem(self):
         f = cp.Variable(3, name="f")
         c = cp.Parameter(3, name="c")

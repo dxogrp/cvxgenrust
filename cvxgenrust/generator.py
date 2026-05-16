@@ -439,7 +439,11 @@ def _render_generated_lib(spec: ProblemSpec, generated_at: str) -> str:
 
 
 def _render_generated_cargo(crate_name: str, generated_at: str) -> str:
-    dependencies = 'clarabel = "0.11.1"'
+    dependencies = """[target.'cfg(target_os = "macos")'.dependencies]
+clarabel = { version = "0.11.1", features = ["sdp-accelerate"] }
+
+[target.'cfg(not(target_os = "macos"))'.dependencies]
+clarabel = { version = "0.11.1", features = ["sdp-openblas"] }"""
     return _fill_template(
         _load_template("Cargo.toml.tmpl"),
         HEADER=_generated_header(
