@@ -588,11 +588,6 @@ def _render_generated_lib(spec: ProblemSpec, generated_at: str) -> str:
         _load_template("clarabel_solve_method.rs.tmpl"),
         CONE_PUSH_CODE=cone_push_code,
     )
-    ffi_methods = _fill_template(
-        _load_template("clarabel_ffi.rs.tmpl"),
-        PARAMETER_VEC_LEN=str(spec.parameter_vec_len),
-        PARAMETER_VEC_LEN_MINUS_ONE=str(spec.parameter_vec_len - 1),
-    )
     python_methods = _fill_template(
         _load_template("pyo3_module.rs.tmpl"),
         LIB_NAME=spec.module_name.replace("-", "_"),
@@ -620,7 +615,6 @@ def _render_generated_lib(spec: ProblemSpec, generated_at: str) -> str:
         PARAMETER_VEC_LEN_MINUS_ONE=str(spec.parameter_vec_len - 1),
         CANONICAL_METHOD=canonical_method,
         SOLVE_METHOD=solve_method,
-        FFI_METHODS=ffi_methods,
         PYTHON_METHODS=python_methods,
         PARAM_SETTERS="".join(param_setters),
         VARIABLE_GETTERS="".join(variable_getters),
