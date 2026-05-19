@@ -465,22 +465,25 @@ def _render_generated_lib(spec: ProblemSpec, generated_at: str) -> str:
     )
 
 
-def _render_generated_cargo(crate_name: str, generated_at: str) -> str:
-    dependencies = """[target.'cfg(target_os = "macos")'.dependencies]
+def _render_generated_cargo(spec: ProblemSpec, generated_at: str) -> str:
+    if spec.cone_dims.psd:
+        dependencies = """[target.'cfg(target_os = "macos")'.dependencies]
 clarabel = { version = "0.11.1", features = ["sdp-accelerate"] }
 
 [target.'cfg(not(target_os = "macos"))'.dependencies]
 clarabel = { version = "0.11.1", features = ["sdp-openblas"] }"""
+    else:
+        dependencies = 'clarabel = "0.11.1"'
     return _fill_template(
         _load_template("Cargo.toml.tmpl"),
         HEADER=_generated_header(
             "#",
             "Cargo manifest",
             generated_at,
-            module_name=crate_name,
+            module_name=spec.module_name,
         ),
-        CRATE_NAME=crate_name,
-        LIB_NAME=crate_name.replace("-", "_"),
+        CRATE_NAME=spec.module_name,
+        LIB_NAME=spec.module_name.replace("-", "_"),
         DEPENDENCIES=dependencies,
     )
 
@@ -670,7 +673,7 @@ def generate_code(
     src_dir.mkdir(parents=True, exist_ok=True)
 
     (output_dir / "Cargo.toml").write_text(
-        _render_generated_cargo(spec.module_name, generated_at), encoding="utf-8"
+        _render_generated_cargo(spec, generated_at), encoding="utf-8"
     )
     (src_dir / "lib.rs").write_text(_render_generated_lib(spec, generated_at), encoding="utf-8")
     (output_dir / "README.md").write_text(
