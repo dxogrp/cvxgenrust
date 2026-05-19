@@ -33,5 +33,4 @@ markers = [
     "python_wrapper: builds and loads the generated Python/CVXPY wrapper",
     "numerical: compares generated solver results with CVXPY",
     "sdp: exercises semidefinite cone support and SDP backend selection",
-    "slow: expensive generated-code build or solve coverage",
 ]

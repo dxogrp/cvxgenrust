@@ -10,7 +10,6 @@ from cvxgenrust import cgr
 from tests.support import GeneratedCodeTestCase
 
 
-@pytest.mark.slow
 class FunctionalTests(GeneratedCodeTestCase):
     def _write_nonneg_ls_problem_module(self, path: Path) -> None:
         path.write_text(
@@ -42,7 +41,7 @@ class FunctionalTests(GeneratedCodeTestCase):
                     'edition = "2024"',
                     "",
                     "[dependencies]",
-                    f'nonneg_ls = {{ path = "{generated_dir}" }}',
+                    f'nonneg_ls = {{ path = "{generated_dir.as_posix()}" }}',
                 ]
             ),
             encoding="utf-8",

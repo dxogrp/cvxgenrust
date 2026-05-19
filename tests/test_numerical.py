@@ -6,7 +6,6 @@ from tests.support import GeneratedCodeTestCase
 
 @pytest.mark.numerical
 @pytest.mark.python_wrapper
-@pytest.mark.slow
 class NumericalTests(GeneratedCodeTestCase):
     def _solve_with_cvxpy_and_generated(self, fixture, module_name: str):
         cvxpy_value = fixture.problem.solve(solver="CLARABEL")
