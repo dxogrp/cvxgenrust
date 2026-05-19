@@ -1,4 +1,5 @@
 import importlib.util
+import os
 import sys
 import tempfile
 import unittest
@@ -20,10 +21,23 @@ class ProblemFixture:
 
 
 class GeneratedCodeTestCase(unittest.TestCase):
+    @staticmethod
+    def _cargo_env():
+        env = os.environ.copy()
+        env.setdefault(
+            "CARGO_TARGET_DIR",
+            str(Path(tempfile.gettempdir()) / "cvxgenrust-cargo-target"),
+        )
+        return env
+
     def _load_generated_module(self, problem, module_name: str):
         unique_name = f"{module_name}_{uuid.uuid4().hex[:8]}"
         tmpdir = tempfile.TemporaryDirectory()
         cgr.generate_code(problem, code_dir=tmpdir.name, module_name=unique_name)
+        os.environ.setdefault(
+            "CARGO_TARGET_DIR",
+            str(Path(tempfile.gettempdir()) / "cvxgenrust-cargo-target"),
+        )
         solver_path = Path(tmpdir.name) / "cgr_solver.py"
         method_name = f"{unique_name}_cgr"
         spec = importlib.util.spec_from_file_location(method_name, solver_path)

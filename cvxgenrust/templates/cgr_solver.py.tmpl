@@ -3,6 +3,7 @@ __HEADER__
 from __future__ import annotations
 
 import ctypes
+import os
 import sys
 import subprocess
 import warnings
@@ -77,7 +78,8 @@ def _flatten_parameter(parameter, metadata) -> list[float]:
 
 
 def _build_solver_library(crate_dir: Path, release: bool = DEFAULT_RELEASE_BUILD) -> Path:
-    target_dir = crate_dir / "target" / ("release" if release else "debug")
+    target_root = Path(os.environ.get("CARGO_TARGET_DIR", crate_dir / "target"))
+    target_dir = target_root / ("release" if release else "debug")
     lib_name = "__LIB_NAME__"
     if sys.platform.startswith("linux"):
         library_path = target_dir / f"lib{lib_name}.so"
@@ -88,7 +90,7 @@ def _build_solver_library(crate_dir: Path, release: bool = DEFAULT_RELEASE_BUILD
     else:
         raise RuntimeError(f"unsupported platform for generated solver library: {sys.platform}")
 
-    if library_path.exists():
+    if library_path.exists() and "CARGO_TARGET_DIR" not in os.environ:
         return library_path
 
     cmd = ["cargo", "build", "--lib"]

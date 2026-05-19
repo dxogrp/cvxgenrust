@@ -103,6 +103,7 @@ class FunctionalTests(GeneratedCodeTestCase):
                 check=True,
                 capture_output=True,
                 text=True,
+                env=self._cargo_env(),
             )
             self.assertIn("status = optimal", result.stdout)
             self.assertIn("value =", result.stdout)
@@ -121,6 +122,7 @@ class FunctionalTests(GeneratedCodeTestCase):
                 check=True,
                 capture_output=True,
                 text=True,
+                env=self._cargo_env(),
             )
             self.assertIn("status = Solved", result.stdout)
             self.assertIn("objective =", result.stdout)
@@ -138,5 +140,6 @@ class FunctionalTests(GeneratedCodeTestCase):
                 check=True,
                 capture_output=True,
                 text=True,
+                env=self._cargo_env(),
             )
             self.assertIn("status = Solved", result.stdout)
