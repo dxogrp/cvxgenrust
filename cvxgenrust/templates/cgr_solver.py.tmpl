@@ -79,6 +79,8 @@ def _flatten_parameter(parameter, metadata) -> list[float]:
 
 def _build_solver_library(crate_dir: Path, release: bool = DEFAULT_RELEASE_BUILD) -> Path:
     target_root = Path(os.environ.get("CARGO_TARGET_DIR", crate_dir / "target"))
+    if not target_root.is_absolute():
+        target_root = crate_dir / target_root
     target_dir = target_root / ("release" if release else "debug")
     lib_name = "__LIB_NAME__"
     if sys.platform.startswith("linux"):
