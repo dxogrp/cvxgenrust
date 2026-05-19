@@ -1,6 +1,13 @@
     pub fn solve(&self) -> Result<SolveResult, RuntimeError> {
+        self.solve_with_settings(self.solver_settings.clone())
+    }
+
+    pub fn solve_with_settings(
+        &self,
+        settings: clarabel::solver::DefaultSettings<f64>,
+    ) -> Result<SolveResult, RuntimeError> {
         use clarabel::algebra::CscMatrix as ClarabelCscMatrix;
-        use clarabel::solver::{DefaultSettings, DefaultSolver, IPSolver, SupportedConeT};
+        use clarabel::solver::{DefaultSolver, IPSolver, SupportedConeT};
 
         let canonical = self.canonical_cone_prob()?;
 
@@ -21,9 +28,6 @@
 
         let mut cones = Vec::new();
 __CONE_PUSH_CODE__
-
-        let mut settings = DefaultSettings::default();
-        settings.verbose = false;
 
         let mut solver = DefaultSolver::new(
             &p,

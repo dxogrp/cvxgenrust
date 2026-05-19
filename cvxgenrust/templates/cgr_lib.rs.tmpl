@@ -10,6 +10,7 @@ static VARIABLES: [VariableInfo; __VARIABLE_COUNT__] = [
 
 pub struct CGRProblem {
     parameter_values: Vec<f64>,
+    solver_settings: clarabel::solver::DefaultSettings<f64>,
 }
 
 impl Default for CGRProblem {
@@ -20,8 +21,11 @@ impl Default for CGRProblem {
 
 impl CGRProblem {
     pub fn new() -> Self {
+        let mut solver_settings = clarabel::solver::DefaultSettings::<f64>::default();
+        solver_settings.verbose = false;
         Self {
             parameter_values: vec![0.0; __PARAMETER_VEC_LEN_MINUS_ONE__usize],
+            solver_settings,
         }
     }
 
@@ -37,6 +41,43 @@ impl CGRProblem {
         let mut out = self.parameter_values.clone();
         out.push(1.0);
         out
+    }
+
+    pub fn solver_settings(&self) -> &clarabel::solver::DefaultSettings<f64> {
+        &self.solver_settings
+    }
+
+    pub fn solver_settings_mut(&mut self) -> &mut clarabel::solver::DefaultSettings<f64> {
+        &mut self.solver_settings
+    }
+
+    pub fn set_solver_default_settings(&mut self) {
+        self.solver_settings = clarabel::solver::DefaultSettings::<f64>::default();
+        self.solver_settings.verbose = false;
+    }
+
+    pub fn set_solver_verbose(&mut self, verbose: bool) {
+        self.solver_settings.verbose = verbose;
+    }
+
+    pub fn set_solver_max_iter(&mut self, max_iter: u32) {
+        self.solver_settings.max_iter = max_iter;
+    }
+
+    pub fn set_solver_time_limit(&mut self, time_limit: f64) {
+        self.solver_settings.time_limit = time_limit;
+    }
+
+    pub fn set_solver_tol_gap_abs(&mut self, tol_gap_abs: f64) {
+        self.solver_settings.tol_gap_abs = tol_gap_abs;
+    }
+
+    pub fn set_solver_tol_gap_rel(&mut self, tol_gap_rel: f64) {
+        self.solver_settings.tol_gap_rel = tol_gap_rel;
+    }
+
+    pub fn set_solver_tol_feas(&mut self, tol_feas: f64) {
+        self.solver_settings.tol_feas = tol_feas;
     }
 
     pub fn set_parameter(&mut self, name: &str, value: &[f64]) -> Result<(), RuntimeError> {
@@ -56,6 +97,29 @@ impl CGRProblem {
         let start = parameter.offset;
         let end = start + parameter.size;
         self.parameter_values[start..end].copy_from_slice(value);
+        Ok(())
+    }
+
+    pub fn update_parameter_entry(
+        &mut self,
+        name: &str,
+        index: usize,
+        value: f64,
+    ) -> Result<(), RuntimeError> {
+        let parameter = PARAMETERS
+            .iter()
+            .find(|parameter| parameter.name == name)
+            .ok_or_else(|| RuntimeError::UnknownParameter(name.to_owned()))?;
+
+        if index >= parameter.size {
+            return Err(RuntimeError::DimensionMismatch {
+                expected: parameter.size,
+                actual: index + 1,
+                name: "parameter_entry",
+            });
+        }
+
+        self.parameter_values[parameter.offset + index] = value;
         Ok(())
     }
 

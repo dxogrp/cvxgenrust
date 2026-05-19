@@ -215,18 +215,28 @@
     }
     .file-note p { margin: 0; color: var(--soft-ink); }
 
-    .usage-card {
+    .usage-card, .api-card {
       padding: 1rem;
       border: 1px solid var(--rule);
       border-radius: var(--radius);
       background: #fff;
       margin-bottom: 14px;
     }
+    .api-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+    .api-card ul {
+      margin: 0.45rem 0 0;
+      padding-left: 1.25rem;
+    }
+    .api-card li { margin: 0.25rem 0; }
     @media (max-width: 760px) {
       .head-inner, main { width: min(100vw - 28px, 1120px); }
-      .brand-row, .grid-two, .file-browser { display: block; }
+      .brand-row, .grid-two, .file-browser, .api-grid { display: block; }
       .generated-meta { margin-top: 10px; text-align: left; white-space: normal; }
-      .info-box, .file-tree, .file-note { margin-bottom: 12px; }
+      .info-box, .file-tree, .file-note, .api-card { margin-bottom: 12px; }
       .brand { font-size: 1.45rem; }
       .module-chip { display: table; margin: 0.4rem 0 0; }
     }
@@ -243,6 +253,7 @@
     <nav class="quick-nav" aria-label="Document sections">
       <a href="#problem">Problem</a>
       <a href="#files">Files</a>
+      <a href="#api">API</a>
       <a href="#python">Python</a>
       <a href="#rust">Rust</a>
     </nav>
@@ -303,11 +314,29 @@ __VARIABLE_ROWS__
         </li>
       </ul>
       <div class="file-notes">
-        <div class="file-note"><strong>Cargo.toml</strong><p>Rust crate manifest for the generated solver. It builds both a regular Rust library and a PyO3 extension module.</p></div>
-        <div class="file-note"><strong>pyproject.toml</strong><p>Python build manifest for maturin. Installing the generated project compiles the PyO3 extension into the package under <code>python/</code>.</p></div>
-        <div class="file-note"><strong>src/lib.rs</strong><p>Generated Rust API. The main entry point is <code>CGRProblem</code>, with parameter setter methods, solve methods, and variable extraction helpers.</p></div>
+        <div class="file-note"><strong>Cargo.toml</strong><p>Rust crate manifest for the generated solver. It names the crate, configures <code>rlib</code> and <code>cdylib</code> outputs, and declares Clarabel and PyO3 dependencies.</p></div>
+        <div class="file-note"><strong>pyproject.toml</strong><p>Python build manifest for maturin. It builds the PyO3 extension module into <code>python/__PACKAGE_NAME_TEXT__/</code> when the generated project is installed.</p></div>
+        <div class="file-note"><strong>src/lib.rs</strong><p>Generated Rust API and runtime types. It defines sparse matrix containers, canonical problem data, solve results, error types, <code>CGRProblem</code>, parameter setters, solve methods, variable extractors, the C ABI entry point, and the PyO3 module.</p></div>
         <div class="file-note"><strong>examples/solve.rs</strong><p>Runnable Rust example that initializes placeholder parameter values, solves the problem, and prints the status, objective, and first variable.</p></div>
-        <div class="file-note"><strong>python/__PACKAGE_NAME_TEXT__/cgr_solver.py</strong><p>CVXPY custom solve method. Register <code>cgr_solve</code> on the original CVXPY problem and call <code>problem.solve(method="CGR", updated_params=[...])</code>.</p></div>
+        <div class="file-note"><strong>python/__PACKAGE_NAME_TEXT__/cgr_solver.py</strong><p>CVXPY custom solve method. It flattens updated parameters, calls the compiled PyO3 <code>solve(parameter_vector)</code> function, and unpacks results back through CVXPY.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="api">
+    <h2>Interface Reference</h2>
+    <p>The snippets below summarize the public surfaces generated in this package. They are declarations, not extra code to copy.</p>
+    <div class="api-grid">
+      <div class="api-card">
+        <h3>src/lib.rs</h3>
+        <p>Main Rust API. The generated setter and extractor names are specific to this problem.</p>
+        <pre><code>__RUST_API_SNIPPET__</code></pre>
+      </div>
+      <div class="api-card">
+        <h3>Not generated yet</h3>
+        <ul>
+__NOT_GENERATED_LINES__
+        </ul>
       </div>
     </div>
   </section>
@@ -329,6 +358,14 @@ __VARIABLE_ROWS__
   <section id="rust">
     <h2>Rust Use</h2>
     <div class="usage-card">
+      <h3>Cargo Dependency</h3>
+      <p>From another Rust crate, add the generated solver as a path dependency:</p>
+      <pre><code>[dependencies]
+__MODULE_NAME_TEXT__ = { path = "/path/to/__PACKAGE_NAME_TEXT__" }</code></pre>
+      <p>The generated project also includes <code>examples/solve.rs</code>, which can be run directly from this directory.</p>
+    </div>
+    <div class="usage-card">
+      <h3>Solve Method</h3>
       <pre><code>__RUST_USAGE__</code></pre>
     </div>
   </section>

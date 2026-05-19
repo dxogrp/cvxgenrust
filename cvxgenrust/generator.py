@@ -480,6 +480,10 @@ def _render_generated_lib(spec: ProblemSpec, generated_at: str) -> str:
             f"""    pub fn set_{ident}(&mut self, value: &[f64]) -> Result<(), RuntimeError> {{
         self.set_parameter({_rust_string(parameter.name)}, value)
     }}
+
+    pub fn update_{ident}(&mut self, index: usize, value: f64) -> Result<(), RuntimeError> {{
+        self.update_parameter_entry({_rust_string(parameter.name)}, index, value)
+    }}
 """
         )
 
@@ -707,6 +711,65 @@ print(problem.status)
         ),
         UPDATED_PARAMS=",\n        ".join(repr(parameter.name) for parameter in spec.parameters),
     ).strip()
+    generated_setters = "\n".join(
+        f"    pub fn set_{_rust_ident(parameter.name)}(&mut self, value: &[f64]) -> Result<(), RuntimeError>;\n"
+        f"    pub fn update_{_rust_ident(parameter.name)}(&mut self, index: usize, value: f64) -> Result<(), RuntimeError>;"
+        for parameter in spec.parameters
+    ) or "    // No generated parameter setters: this problem has no parameters."
+    generated_extractors = "\n".join(
+        f"    pub fn extract_{_rust_ident(variable.name)}(&self, solution: &[f64]) -> Result<Vec<f64>, RuntimeError>;"
+        for variable in spec.variables
+    ) or "    // No generated variable extractors."
+    rust_api_snippet = _fill_template(
+        """pub struct CGRProblem { ... }
+
+impl CGRProblem {
+    pub fn new() -> Self;
+    pub fn parameter_info(&self) -> &'static [ParameterInfo];
+    pub fn variable_info(&self) -> &'static [VariableInfo];
+    pub fn parameter_vector(&self) -> Vec<f64>;
+
+    pub fn solver_settings(&self) -> &clarabel::solver::DefaultSettings<f64>;
+    pub fn solver_settings_mut(&mut self) -> &mut clarabel::solver::DefaultSettings<f64>;
+    pub fn set_solver_default_settings(&mut self);
+    pub fn set_solver_verbose(&mut self, verbose: bool);
+    pub fn set_solver_max_iter(&mut self, max_iter: u32);
+    pub fn set_solver_time_limit(&mut self, time_limit: f64);
+    pub fn set_solver_tol_gap_abs(&mut self, tol_gap_abs: f64);
+    pub fn set_solver_tol_gap_rel(&mut self, tol_gap_rel: f64);
+    pub fn set_solver_tol_feas(&mut self, tol_feas: f64);
+
+    pub fn set_parameter(&mut self, name: &str, value: &[f64]) -> Result<(), RuntimeError>;
+    pub fn update_parameter_entry(&mut self, name: &str, index: usize, value: f64) -> Result<(), RuntimeError>;
+__GENERATED_SETTERS__
+
+    pub fn canonical_cone_prob(&self) -> Result<CanonicalConeQp, RuntimeError>;
+    pub fn solve(&self) -> Result<SolveResult, RuntimeError>;
+
+    pub fn extract_variable(&self, name: &str, solution: &[f64]) -> Result<Vec<f64>, RuntimeError>;
+__GENERATED_EXTRACTORS__
+}
+
+pub struct SolveResult {
+    pub x: Vec<f64>,      // primal solution vector
+    pub z: Vec<f64>,      // dual solution vector in canonical solver order
+    pub s: Vec<f64>,      // slack vector
+    pub status: String,
+    pub obj_val: f64,
+    pub iterations: u32,
+    pub r_prim: f64,
+    pub r_dual: f64,
+}""",
+        GENERATED_SETTERS=generated_setters,
+        GENERATED_EXTRACTORS=generated_extractors,
+    )
+    not_generated_lines = "\n".join(
+        f"<li>{item}</li>"
+        for item in [
+            "Named helpers for extracting original constraint duals from <code>SolveResult.z</code>.",
+            "Warm-start support; the Python wrapper accepts <code>warm_start</code> for CVXPY compatibility but does not use it.",
+        ]
+    )
     return _fill_template(
         _load_template("cgr_README.html.tmpl"),
         MODULE_NAME=attr(spec.module_name),
@@ -717,6 +780,8 @@ print(problem.status)
         GENERATOR_VERSION=code(GENERATOR_VERSION),
         PARAMETER_ROWS=parameter_rows,
         VARIABLE_ROWS=variable_rows,
+        RUST_API_SNIPPET=code(rust_api_snippet),
+        NOT_GENERATED_LINES=not_generated_lines,
         RUST_USAGE=code(rust_usage),
         PYTHON_USAGE=code(python_usage),
     )
