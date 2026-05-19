@@ -9,5 +9,10 @@ edition = "2024"
 name = "__LIB_NAME__"
 crate-type = ["rlib", "cdylib"]
 
+[features]
+default = []
+python = ["pyo3/extension-module"]
+
 [dependencies]
+pyo3 = { version = "__PYO3_VERSION__", optional = true }
 __DEPENDENCIES__

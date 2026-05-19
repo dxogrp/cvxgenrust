@@ -1,0 +1,19 @@
+__HEADER__
+
+[project]
+name = "__PROJECT_NAME__"
+version = "0.1.0"
+description = "Generated CvxGenRust solver for __MODULE_NAME__"
+requires-python = "__REQUIRES_PYTHON__"
+dependencies = [
+__PYTHON_DEPENDENCIES__
+]
+
+[build-system]
+requires = ["maturin__MATURIN_VERSION__"]
+build-backend = "maturin"
+
+[tool.maturin]
+features = ["python"]
+module-name = "__PACKAGE_NAME__.__LIB_NAME__"
+python-source = "python"

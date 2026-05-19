@@ -1,4 +1,4 @@
-import importlib.util
+import importlib
 import os
 import sys
 import tempfile
@@ -33,23 +33,31 @@ class GeneratedCodeTestCase(unittest.TestCase):
     def _load_generated_module(self, problem, module_name: str):
         unique_name = f"{module_name}_{uuid.uuid4().hex[:8]}"
         tmpdir = tempfile.TemporaryDirectory()
-        cgr.generate_code(problem, code_dir=tmpdir.name, module_name=unique_name)
         os.environ.setdefault(
             "CARGO_TARGET_DIR",
             str(Path(tempfile.gettempdir()) / "cvxgenrust-cargo-target"),
         )
-        solver_path = Path(tmpdir.name) / "cgr_solver.py"
+        project = cgr.generate_code(problem, code_dir=tmpdir.name, module_name=unique_name)
+        python_source_dir = str(project.python_source_dir)
+        sys.path.insert(0, python_source_dir)
+        package_name = project.package_name
         method_name = f"{unique_name}_cgr"
-        spec = importlib.util.spec_from_file_location(method_name, solver_path)
-        module = importlib.util.module_from_spec(spec)
-        assert spec.loader is not None
-        sys.modules[method_name] = module
-        spec.loader.exec_module(module)
+        module = importlib.import_module(f"{package_name}.cgr_solver")
+        setattr(tmpdir, "cgr_python_source_dir", python_source_dir)
+        setattr(tmpdir, "cgr_package_name", package_name)
         problem.register_solve(method_name, module.cgr_solve)
         return tmpdir, method_name, module
 
     def _clear_generated_module(self, tmpdir, method_name: str):
         sys.modules.pop(method_name, None)
+        package_name = getattr(tmpdir, "cgr_package_name", None)
+        if package_name is not None:
+            for name in list(sys.modules):
+                if name == package_name or name.startswith(f"{package_name}."):
+                    sys.modules.pop(name, None)
+        python_source_dir = getattr(tmpdir, "cgr_python_source_dir", None)
+        if python_source_dir in sys.path:
+            sys.path.remove(python_source_dir)
         tmpdir.cleanup()
 
     def _build_nonneg_ls_problem(self):

@@ -4,6 +4,8 @@ import keyword
 import math
 import re
 import shutil
+import subprocess
+import sys
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
@@ -32,8 +34,28 @@ def _load_clarabel_version() -> str:
     return str(project_data.get("tool", {}).get("cvxgenrust", {}).get("clarabel-version", "0.11.1"))
 
 
+def _load_generated_python_dependencies() -> list[str]:
+    project_data = _load_pyproject()
+    dependencies = project_data.get("tool", {}).get("cvxgenrust", {}).get(
+        "python-dependencies",
+        ["cvxpy>=1.9", "numpy>=1.26"],
+    )
+    if not isinstance(dependencies, list) or not all(isinstance(item, str) for item in dependencies):
+        raise TypeError("[tool.cvxgenrust].python-dependencies must be a list of strings")
+    return dependencies
+
+
+def _load_tool_config_string(name: str, default: str) -> str:
+    project_data = _load_pyproject()
+    return str(project_data.get("tool", {}).get("cvxgenrust", {}).get(name, default))
+
+
 GENERATOR_VERSION = _load_generator_version()
 CLARABEL_VERSION = _load_clarabel_version()
+GENERATED_REQUIRES_PYTHON = _load_tool_config_string("generated-requires-python", ">=3.12")
+MATURIN_VERSION = _load_tool_config_string("maturin-version", ">=1.7,<2")
+PYO3_VERSION = _load_tool_config_string("pyo3-version", "0.25")
+GENERATED_PYTHON_DEPENDENCIES = _load_generated_python_dependencies()
 
 
 @dataclass
@@ -108,13 +130,79 @@ class ProblemSpec:
 class GeneratedRustProject:
     spec: ProblemSpec
     output_dir: Path
+    package_name: str
+    python_source_dir: Path
 
 
 def _snake_case(name: str) -> str:
-    candidate = re.sub(r"[^a-zA-Z0-9]+", "_", name).strip("_").lower() or "generated_problem"
+    candidate = re.sub(r"[^a-zA-Z0-9]+", "_", name).strip("_").lower() or "cgr_solver"
     if keyword.iskeyword(candidate):
-        candidate = f"{candidate}_problem"
+        candidate = f"{candidate}_solver"
     return candidate
+
+
+def _python_package_name(name: str) -> str:
+    candidate = _snake_case(name)
+    if candidate[0].isdigit():
+        candidate = f"cgr_{candidate}"
+    return candidate
+
+
+def _python_project_name(package_name: str) -> str:
+    return package_name.replace("_", "-")
+
+
+def _toml_string(value: str) -> str:
+    return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def _toml_string_list(values: list[str], indent: str = "    ") -> str:
+    return "\n".join(f"{indent}{_toml_string(value)}," for value in values)
+
+
+def _python_install_command(target_dir: Path, project_dir: Path) -> list[str]:
+    return [
+        sys.executable,
+        "-m",
+        "pip",
+        "install",
+        "--no-deps",
+        "--target",
+        str(target_dir),
+        "--upgrade",
+        str(project_dir),
+    ]
+
+
+def _ensure_pip_available() -> None:
+    pip_check = subprocess.run(
+        [sys.executable, "-m", "pip", "--version"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    if pip_check.returncode == 0:
+        return
+
+    try:
+        subprocess.run(
+            [sys.executable, "-m", "ensurepip", "--upgrade"],
+            check=True,
+        )
+    except subprocess.CalledProcessError as error:
+        raise RuntimeError(
+            "automatic wrapper compilation requires pip; install pip or run with wrapper=False"
+        ) from error
+
+
+def _compile_python_wrapper(output_dir: Path) -> None:
+    python_source_dir = output_dir / "python"
+    python_source_dir.mkdir(parents=True, exist_ok=True)
+    _ensure_pip_available()
+    subprocess.run(
+        _python_install_command(python_source_dir, output_dir),
+        cwd=output_dir,
+        check=True,
+    )
 
 
 def _load_template(name: str) -> str:
@@ -450,6 +538,12 @@ def _render_generated_lib(spec: ProblemSpec, generated_at: str) -> str:
         PARAMETER_VEC_LEN=str(spec.parameter_vec_len),
         PARAMETER_VEC_LEN_MINUS_ONE=str(spec.parameter_vec_len - 1),
     )
+    python_methods = _fill_template(
+        _load_template("pyo3_module.rs.tmpl"),
+        LIB_NAME=spec.module_name.replace("-", "_"),
+        PARAMETER_VEC_LEN=str(spec.parameter_vec_len),
+        PARAMETER_VEC_LEN_MINUS_ONE=str(spec.parameter_vec_len - 1),
+    )
 
     return _fill_template(
         _load_template("cgr_lib.rs.tmpl"),
@@ -470,9 +564,38 @@ def _render_generated_lib(spec: ProblemSpec, generated_at: str) -> str:
         CANONICAL_METHOD=canonical_method,
         SOLVE_METHOD=solve_method,
         FFI_METHODS=ffi_methods,
+        PYTHON_METHODS=python_methods,
         PARAM_SETTERS="".join(param_setters),
         VARIABLE_GETTERS="".join(variable_getters),
     )
+
+
+def _render_generated_pyproject(spec: ProblemSpec, package_name: str, generated_at: str) -> str:
+    return _fill_template(
+        _load_template("pyproject.toml.tmpl"),
+        HEADER=_generated_header(
+            "#",
+            "Python package manifest",
+            generated_at,
+            module_name=spec.module_name,
+        ),
+        PROJECT_NAME=_python_project_name(package_name),
+        PACKAGE_NAME=package_name,
+        MODULE_NAME=spec.module_name,
+        LIB_NAME=spec.module_name.replace("-", "_"),
+        REQUIRES_PYTHON=GENERATED_REQUIRES_PYTHON,
+        MATURIN_VERSION=MATURIN_VERSION,
+        PYTHON_DEPENDENCIES=_toml_string_list(GENERATED_PYTHON_DEPENDENCIES),
+    )
+
+
+def _render_generated_init(spec: ProblemSpec, generated_at: str) -> str:
+    return _generated_header(
+        "#",
+        "Python package initializer",
+        generated_at,
+        module_name=spec.module_name,
+    ) + "\n"
 
 
 def _render_generated_cargo(spec: ProblemSpec, generated_at: str) -> str:
@@ -495,6 +618,7 @@ clarabel = { version = "__CLARABEL_VERSION__", features = ["sdp-openblas"] }"""
         CRATE_NAME=spec.module_name,
         LIB_NAME=spec.module_name.replace("-", "_"),
         DEPENDENCIES=dependencies.replace("__CLARABEL_VERSION__", CLARABEL_VERSION),
+        PYO3_VERSION=PYO3_VERSION,
     )
 
 
@@ -598,27 +722,6 @@ def _render_generated_python_wrapper(spec: ProblemSpec, generated_at: str) -> st
         )
         for parameter in spec.parameters
     )
-    variable_entries = ",\n    ".join(
-        repr(
-            dict(
-                name=variable.name,
-                shape=list(variable.shape),
-                size=variable.size,
-                offset=variable.offset,
-            )
-        )
-        for variable in spec.variables
-    )
-
-    param_helpers = []
-    for parameter in spec.parameters:
-        ident = _rust_ident(parameter.name)
-        param_helpers.append(
-            f"""    def set_{ident}(self, value):
-        self.set_parameter("{parameter.name}", value)
-"""
-        )
-
     return _fill_template(
         _load_template("cgr_solver.py.tmpl"),
         HEADER=_generated_header(
@@ -628,9 +731,7 @@ def _render_generated_python_wrapper(spec: ProblemSpec, generated_at: str) -> st
             module_name=spec.module_name,
         ),
         PARAMETER_ENTRIES=parameter_entries,
-        VARIABLE_ENTRIES=variable_entries,
         PARAMETER_VEC_LEN=str(spec.parameter_vec_len),
-        PARAM_HELPERS="".join(param_helpers),
         LIB_NAME=spec.module_name.replace("-", "_"),
         SOLVER_METHOD_NAME=f"{spec.module_name}_cgr",
     )
@@ -673,26 +774,42 @@ def generate_code(
     problem: cp.Problem,
     code_dir: str | Path = "generated_problem",
     module_name: str | None = None,
+    wrapper: bool = True,
 ) -> GeneratedRustProject:
     output_dir = Path(code_dir)
     module = module_name or output_dir.name
+    package_name = _python_package_name(output_dir.name)
     spec = extract_problem(problem, module_name=module)
     generated_at = datetime.now().astimezone().isoformat(timespec="seconds")
 
     src_dir = output_dir / "src"
     src_dir.mkdir(parents=True, exist_ok=True)
+    package_dir = output_dir / "python" / package_name
+    package_dir.mkdir(parents=True, exist_ok=True)
 
     (output_dir / "Cargo.toml").write_text(
         _render_generated_cargo(spec, generated_at), encoding="utf-8"
     )
+    (output_dir / "pyproject.toml").write_text(
+        _render_generated_pyproject(spec, package_name, generated_at), encoding="utf-8"
+    )
+    (package_dir / "__init__.py").write_text(
+        _render_generated_init(spec, generated_at), encoding="utf-8"
+    )
     (src_dir / "lib.rs").write_text(_render_generated_lib(spec, generated_at), encoding="utf-8")
     (output_dir / "README.md").write_text(
-        _render_generated_readme(spec, output_dir.name, generated_at), encoding="utf-8"
+        _render_generated_readme(spec, package_name, generated_at), encoding="utf-8"
     )
     (output_dir / "problem.json").unlink(missing_ok=True)
-    (output_dir / "cgr_solver.py").write_text(
+    (package_dir / "cgr_solver.py").write_text(
         _render_generated_python_wrapper(spec, generated_at), encoding="utf-8"
     )
+    stale_root_init = output_dir / "__init__.py"
+    stale_root_wrapper = output_dir / "cgr_solver.py"
+    stale_runtime = output_dir / "_runtime.py"
+    stale_root_init.unlink(missing_ok=True)
+    stale_root_wrapper.unlink(missing_ok=True)
+    stale_runtime.unlink(missing_ok=True)
     examples_dir = output_dir / "examples"
     examples_dir.mkdir(parents=True, exist_ok=True)
     (examples_dir / "solve.rs").write_text(
@@ -710,5 +827,16 @@ def generate_code(
         pycache_dir = output_dir / "__pycache__"
         if pycache_dir.exists():
             shutil.rmtree(pycache_dir)
+        for egg_info_dir in output_dir.glob("*.egg-info"):
+            if egg_info_dir.is_dir():
+                shutil.rmtree(egg_info_dir)
 
-    return GeneratedRustProject(spec=spec, output_dir=output_dir)
+    if wrapper:
+        _compile_python_wrapper(output_dir)
+
+    return GeneratedRustProject(
+        spec=spec,
+        output_dir=output_dir,
+        package_name=package_name,
+        python_source_dir=output_dir / "python",
+    )

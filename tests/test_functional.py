@@ -75,7 +75,7 @@ class FunctionalTests(GeneratedCodeTestCase):
             workspace = Path(tmpdir)
             self._write_nonneg_ls_problem_module(workspace / "nonneg_ls.py")
             output_dir = workspace / "nonneg_ls_cgr"
-            cgr.generate_code(fixture.problem, code_dir=output_dir, module_name="nonneg_ls")
+            project = cgr.generate_code(fixture.problem, code_dir=output_dir, module_name="nonneg_ls")
             (workspace / "run_python_workflow.py").write_text(
                 "\n".join(
                     [
@@ -84,9 +84,9 @@ class FunctionalTests(GeneratedCodeTestCase):
                         "import numpy as np",
                         "",
                         "ROOT = Path(__file__).resolve().parent",
-                        'sys.path.insert(0, str(ROOT / "nonneg_ls_cgr"))',
+                        f"sys.path.insert(0, {str(project.python_source_dir)!r})",
                         "",
-                        "from cgr_solver import cgr_solve",
+                        "from nonneg_ls_cgr.cgr_solver import cgr_solve",
                         "from nonneg_ls import problem, A, b, x",
                         "",
                         'problem.register_solve("CGR", cgr_solve)',
@@ -112,13 +112,50 @@ class FunctionalTests(GeneratedCodeTestCase):
             self.assertIn("value =", result.stdout)
             self.assertIn("x =", result.stdout)
 
+
+    @pytest.mark.python_wrapper
+    def test_generated_python_package_installs(self):
+        fixture = self._build_nonneg_ls_problem()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            workspace = Path(tmpdir)
+            output_dir = workspace / "nonneg_ls_cgr"
+            venv_dir = workspace / "venv"
+            cgr.generate_code(fixture.problem, code_dir=output_dir, module_name="nonneg_ls", wrapper=False)
+            subprocess.run(
+                [sys.executable, "-m", "venv", "--system-site-packages", str(venv_dir)],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            python = venv_dir / ("Scripts" if sys.platform == "win32" else "bin") / (
+                "python.exe" if sys.platform == "win32" else "python"
+            )
+            subprocess.run(
+                [str(python), "-m", "pip", "install", "--no-deps", str(output_dir)],
+                check=True,
+                capture_output=True,
+                text=True,
+                env=self._cargo_env(),
+            )
+            result = subprocess.run(
+                [
+                    str(python),
+                    "-c",
+                    "from nonneg_ls_cgr.cgr_solver import cgr_solve; from nonneg_ls_cgr import nonneg_ls; print(cgr_solve.__name__, nonneg_ls.solve.__name__)",
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            self.assertIn("cgr_solve solve", result.stdout)
+
     @pytest.mark.rust_smoke
     def test_rust_user_workflow_runs(self):
         fixture = self._build_nonneg_ls_problem()
         with tempfile.TemporaryDirectory() as tmpdir:
             workspace = Path(tmpdir)
             output_dir = workspace / "nonneg_ls_cgr"
-            cgr.generate_code(fixture.problem, code_dir=output_dir, module_name="nonneg_ls")
+            cgr.generate_code(fixture.problem, code_dir=output_dir, module_name="nonneg_ls", wrapper=False)
             project_dir = self._write_rust_workflow_project(workspace, output_dir)
             result = subprocess.run(
                 ["cargo", "run", "--manifest-path", str(project_dir / "Cargo.toml")],
@@ -138,7 +175,7 @@ class FunctionalTests(GeneratedCodeTestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             workspace = Path(tmpdir)
             output_dir = workspace / "nonneg_ls_cgr"
-            cgr.generate_code(fixture.problem, code_dir=output_dir, module_name="nonneg_ls")
+            cgr.generate_code(fixture.problem, code_dir=output_dir, module_name="nonneg_ls", wrapper=False)
             result = subprocess.run(
                 ["cargo", "run", "--example", "solve", "--manifest-path", str(output_dir / "Cargo.toml")],
                 cwd=workspace,

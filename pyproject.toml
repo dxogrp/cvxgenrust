@@ -25,6 +25,13 @@ examples = [
 
 [tool.cvxgenrust]
 clarabel-version = "0.11.1"
+generated-requires-python = ">=3.12"
+maturin-version = ">=1.7,<2"
+pyo3-version = "0.25"
+python-dependencies = [
+    "cvxpy>=1.9",
+    "numpy>=1.26",
+]
 
 [tool.pytest.ini_options]
 markers = [

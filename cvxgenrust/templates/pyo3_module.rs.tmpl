@@ -1,0 +1,74 @@
+#[cfg(feature = "python")]
+mod python {
+    use super::*;
+    use pyo3::exceptions::PyRuntimeError;
+    use pyo3::prelude::*;
+
+    #[pyclass]
+    pub struct PySolveResult {
+        #[pyo3(get)]
+        pub status: String,
+        #[pyo3(get)]
+        pub solve_time: f64,
+        #[pyo3(get)]
+        pub iterations: u32,
+        #[pyo3(get)]
+        pub obj_val: f64,
+        #[pyo3(get)]
+        pub obj_val_dual: f64,
+        #[pyo3(get)]
+        pub r_prim: f64,
+        #[pyo3(get)]
+        pub r_dual: f64,
+        #[pyo3(get)]
+        pub x: Vec<f64>,
+        #[pyo3(get)]
+        pub z: Vec<f64>,
+        #[pyo3(get)]
+        pub s: Vec<f64>,
+    }
+
+    impl From<SolveResult> for PySolveResult {
+        fn from(solution: SolveResult) -> Self {
+            Self {
+                status: solution.status,
+                solve_time: solution.solve_time,
+                iterations: solution.iterations,
+                obj_val: solution.obj_val,
+                obj_val_dual: solution.obj_val_dual,
+                r_prim: solution.r_prim,
+                r_dual: solution.r_dual,
+                x: solution.x,
+                z: solution.z,
+                s: solution.s,
+            }
+        }
+    }
+
+    #[pyfunction]
+    pub fn solve(parameter_vector: Vec<f64>) -> PyResult<PySolveResult> {
+        if parameter_vector.len() != __PARAMETER_VEC_LEN__ {
+            return Err(PyRuntimeError::new_err(format!(
+                "parameter vector length mismatch: expected {}, got {}",
+                __PARAMETER_VEC_LEN__,
+                parameter_vector.len()
+            )));
+        }
+
+        let mut problem = CGRProblem::new();
+        problem
+            .parameter_values
+            .copy_from_slice(&parameter_vector[..__PARAMETER_VEC_LEN_MINUS_ONE__]);
+
+        problem
+            .solve()
+            .map(PySolveResult::from)
+            .map_err(|error| PyRuntimeError::new_err(error.to_string()))
+    }
+
+    #[pymodule]
+    pub fn __LIB_NAME__(m: &Bound<'_, PyModule>) -> PyResult<()> {
+        m.add_function(wrap_pyfunction!(solve, m)?)?;
+        Ok(())
+    }
+}
