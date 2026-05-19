@@ -106,6 +106,14 @@ class VariableSpec:
 
 
 @dataclass
+class DualVariableSpec:
+    name: str
+    shape: tuple[int, ...]
+    size: int
+    offset: int
+
+
+@dataclass
 class ConeDimsSpec:
     zero: int
     nonneg: int
@@ -122,6 +130,7 @@ class ProblemSpec:
     cone_dims: ConeDimsSpec
     parameters: list[ParameterSpec]
     variables: list[VariableSpec]
+    dual_variables: list[DualVariableSpec]
     p_map: AffineCscMapSpec
     a_map: AffineCscMapSpec
     q_map: AffineVectorMapSpec
@@ -361,7 +370,7 @@ def extract_problem(
     if not problem.is_dpp(quad_form_dpp="qp"):
         raise ValueError("problem must satisfy CVXPY's DPP rules for code generation")
     cvxpy_solver = cp.CLARABEL
-    data, _, _ = problem.get_problem_data(cvxpy_solver)
+    data, _, inverse_data = problem.get_problem_data(cvxpy_solver)
     param_prob = data["param_prob"]
     parameter_vec_len = int(param_prob.total_param_size + 1)
     canonical_dim = int(getattr(param_prob.x, "size", data["A"].shape[1]))
@@ -409,12 +418,31 @@ def extract_problem(
             )
         )
 
+    solver_inverse = inverse_data[-1].inverse_data if inverse_data else {}
+    canonical_constraints = list(solver_inverse.get("eq_constr", [])) + list(
+        solver_inverse.get("other_constr", [])
+    )
+    dual_variables = []
+    dual_offset = 0
+    for index, constraint in enumerate(canonical_constraints):
+        size = int(constraint.size)
+        dual_variables.append(
+            DualVariableSpec(
+                name=f"d{index}",
+                shape=tuple(int(x) for x in constraint.shape),
+                size=size,
+                offset=dual_offset,
+            )
+        )
+        dual_offset += size
+
     return ProblemSpec(
         module_name=_snake_case(module_name),
         parameter_vec_len=parameter_vec_len,
         cone_dims=dims,
         parameters=parameters,
         variables=variables,
+        dual_variables=dual_variables,
         p_map=p_map,
         a_map=a_map,
         q_map=linear_obj_map,
@@ -458,6 +486,15 @@ def _render_variable_info(variable: VariableSpec) -> str:
     }}"""
 
 
+def _render_dual_variable_info(dual_variable: DualVariableSpec) -> str:
+    return f"""DualVariableInfo {{
+        name: {_rust_string(dual_variable.name)},
+        shape: {_rust_usize_slice(dual_variable.shape)},
+        size: {dual_variable.size}usize,
+        offset: {dual_variable.offset}usize,
+    }}"""
+
+
 def _render_cone_dims(spec: ConeDimsSpec) -> str:
     return f"""ConeDims {{
             zero: {spec.zero}usize,
@@ -472,6 +509,10 @@ def _render_cone_dims(spec: ConeDimsSpec) -> str:
 def _render_generated_lib(spec: ProblemSpec, generated_at: str) -> str:
     parameters = ",\n    ".join(_render_parameter_info(parameter) for parameter in spec.parameters)
     variables = ",\n    ".join(_render_variable_info(variable) for variable in spec.variables)
+    dual_variables = ",\n    ".join(
+        _render_dual_variable_info(dual_variable)
+        for dual_variable in spec.dual_variables
+    )
 
     param_setters = []
     for parameter in spec.parameters:
@@ -493,6 +534,16 @@ def _render_generated_lib(spec: ProblemSpec, generated_at: str) -> str:
         variable_getters.append(
             f"""    pub fn extract_{ident}(&self, solution: &[f64]) -> Result<Vec<f64>, RuntimeError> {{
         self.extract_variable({_rust_string(variable.name)}, solution)
+    }}
+"""
+        )
+
+    dual_variable_getters = []
+    for dual_variable in spec.dual_variables:
+        ident = _rust_ident(dual_variable.name)
+        dual_variable_getters.append(
+            f"""    pub fn extract_{ident}(&self, dual_solution: &[f64]) -> Result<Vec<f64>, RuntimeError> {{
+        self.extract_dual_variable({_rust_string(dual_variable.name)}, dual_solution)
     }}
 """
         )
@@ -564,6 +615,8 @@ def _render_generated_lib(spec: ProblemSpec, generated_at: str) -> str:
         PARAMETERS=parameters,
         VARIABLE_COUNT=str(len(spec.variables)),
         VARIABLES=variables,
+        DUAL_VARIABLE_COUNT=str(len(spec.dual_variables)),
+        DUAL_VARIABLES=dual_variables,
         PARAMETER_VEC_LEN_MINUS_ONE=str(spec.parameter_vec_len - 1),
         CANONICAL_METHOD=canonical_method,
         SOLVE_METHOD=solve_method,
@@ -571,6 +624,7 @@ def _render_generated_lib(spec: ProblemSpec, generated_at: str) -> str:
         PYTHON_METHODS=python_methods,
         PARAM_SETTERS="".join(param_setters),
         VARIABLE_GETTERS="".join(variable_getters),
+        DUAL_VARIABLE_GETTERS="".join(dual_variable_getters),
     )
 
 
@@ -657,6 +711,15 @@ def _render_generated_readme(spec: ProblemSpec, package_name: str, generated_at:
         "</tr>"
         for variable in spec.variables
     ) or '          <tr><td colspan="4">No variables</td></tr>'
+    dual_variable_rows = "\n".join(
+        "          <tr>"
+        f"<td><code>{code(dual_variable.name)}</code></td>"
+        f"<td>{code(dimension(dual_variable.shape, dual_variable.size))}</td>"
+        f"<td>{dual_variable.size}</td>"
+        f"<td>{dual_variable.offset}</td>"
+        "</tr>"
+        for dual_variable in spec.dual_variables
+    ) or '          <tr><td colspan="4">No canonical dual blocks</td></tr>'
     setter_lines = "\n".join(
         f"problem.set_{_rust_ident(parameter.name)}(&vec![0.0; {parameter.size}])?;"
         for parameter in spec.parameters
@@ -720,15 +783,26 @@ print(problem.status)
         f"    pub fn extract_{_rust_ident(variable.name)}(&self, solution: &[f64]) -> Result<Vec<f64>, RuntimeError>;"
         for variable in spec.variables
     ) or "    // No generated variable extractors."
+    generated_dual_extractors = "\n".join(
+        f"    pub fn extract_{_rust_ident(dual_variable.name)}(&self, dual_solution: &[f64]) -> Result<Vec<f64>, RuntimeError>;"
+        for dual_variable in spec.dual_variables
+    ) or "    // No generated dual block extractors."
     rust_api_snippet = _fill_template(
         """pub struct CGRProblem { ... }
 
 impl CGRProblem {
+    // Construct a problem object with zero-filled parameters and quiet Clarabel settings.
     pub fn new() -> Self;
+
+    // Static metadata for generated parameter, primal variable, and canonical dual layouts.
     pub fn parameter_info(&self) -> &'static [ParameterInfo];
     pub fn variable_info(&self) -> &'static [VariableInfo];
+    pub fn dual_variable_info(&self) -> &'static [DualVariableInfo];
+
+    // Flattened parameter vector in CVXPY canonical order, including the trailing constant slot.
     pub fn parameter_vector(&self) -> Vec<f64>;
 
+    // Clarabel settings accessors and common convenience setters.
     pub fn solver_settings(&self) -> &clarabel::solver::DefaultSettings<f64>;
     pub fn solver_settings_mut(&mut self) -> &mut clarabel::solver::DefaultSettings<f64>;
     pub fn set_solver_default_settings(&mut self);
@@ -739,20 +813,28 @@ impl CGRProblem {
     pub fn set_solver_tol_gap_rel(&mut self, tol_gap_rel: f64);
     pub fn set_solver_tol_feas(&mut self, tol_feas: f64);
 
+    // Generic and generated parameter setters. Entry updates use zero-based flattened indices.
     pub fn set_parameter(&mut self, name: &str, value: &[f64]) -> Result<(), RuntimeError>;
     pub fn update_parameter_entry(&mut self, name: &str, index: usize, value: f64) -> Result<(), RuntimeError>;
 __GENERATED_SETTERS__
 
+    // Build the current canonical cone program data, or solve it with Clarabel.
     pub fn canonical_cone_prob(&self) -> Result<CanonicalConeQp, RuntimeError>;
     pub fn solve(&self) -> Result<SolveResult, RuntimeError>;
 
+    // Extract primal variables from SolveResult.x.
     pub fn extract_variable(&self, name: &str, solution: &[f64]) -> Result<Vec<f64>, RuntimeError>;
 __GENERATED_EXTRACTORS__
+
+    // Extract canonical dual blocks from SolveResult.z. These are not always one-to-one
+    // with original CVXPY constraints if canonicalization split a constraint.
+    pub fn extract_dual_variable(&self, name: &str, dual_solution: &[f64]) -> Result<Vec<f64>, RuntimeError>;
+__GENERATED_DUAL_EXTRACTORS__
 }
 
 pub struct SolveResult {
     pub x: Vec<f64>,      // primal solution vector
-    pub z: Vec<f64>,      // dual solution vector in canonical solver order
+    pub z: Vec<f64>,      // canonical dual solution vector
     pub s: Vec<f64>,      // slack vector
     pub status: String,
     pub obj_val: f64,
@@ -762,13 +844,7 @@ pub struct SolveResult {
 }""",
         GENERATED_SETTERS=generated_setters,
         GENERATED_EXTRACTORS=generated_extractors,
-    )
-    not_generated_lines = "\n".join(
-        f"<li>{item}</li>"
-        for item in [
-            "Named helpers for extracting original constraint duals from <code>SolveResult.z</code>.",
-            "Warm-start support; the Python wrapper accepts <code>warm_start</code> for CVXPY compatibility but does not use it.",
-        ]
+        GENERATED_DUAL_EXTRACTORS=generated_dual_extractors,
     )
     return _fill_template(
         _load_template("cgr_README.html.tmpl"),
@@ -780,8 +856,8 @@ pub struct SolveResult {
         GENERATOR_VERSION=code(GENERATOR_VERSION),
         PARAMETER_ROWS=parameter_rows,
         VARIABLE_ROWS=variable_rows,
+        DUAL_VARIABLE_ROWS=dual_variable_rows,
         RUST_API_SNIPPET=code(rust_api_snippet),
-        NOT_GENERATED_LINES=not_generated_lines,
         RUST_USAGE=code(rust_usage),
         PYTHON_USAGE=code(python_usage),
     )

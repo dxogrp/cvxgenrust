@@ -8,6 +8,10 @@ static VARIABLES: [VariableInfo; __VARIABLE_COUNT__] = [
     __VARIABLES__
 ];
 
+static DUAL_VARIABLES: [DualVariableInfo; __DUAL_VARIABLE_COUNT__] = [
+    __DUAL_VARIABLES__
+];
+
 pub struct CGRProblem {
     parameter_values: Vec<f64>,
     solver_settings: clarabel::solver::DefaultSettings<f64>,
@@ -35,6 +39,10 @@ impl CGRProblem {
 
     pub fn variable_info(&self) -> &'static [VariableInfo] {
         &VARIABLES
+    }
+
+    pub fn dual_variable_info(&self) -> &'static [DualVariableInfo] {
+        &DUAL_VARIABLES
     }
 
     pub fn parameter_vector(&self) -> Vec<f64> {
@@ -144,7 +152,28 @@ __SOLVE_METHOD__
         Ok(solution[variable.offset..variable.offset + variable.size].to_vec())
     }
 
-__PARAM_SETTERS____VARIABLE_GETTERS__}
+    pub fn extract_dual_variable(
+        &self,
+        name: &str,
+        dual_solution: &[f64],
+    ) -> Result<Vec<f64>, RuntimeError> {
+        let dual_variable = DUAL_VARIABLES
+            .iter()
+            .find(|dual_variable| dual_variable.name == name)
+            .ok_or_else(|| RuntimeError::UnknownDualVariable(name.to_owned()))?;
+
+        if dual_solution.len() < dual_variable.offset + dual_variable.size {
+            return Err(RuntimeError::DimensionMismatch {
+                expected: dual_variable.offset + dual_variable.size,
+                actual: dual_solution.len(),
+                name: "dual_solution",
+            });
+        }
+
+        Ok(dual_solution[dual_variable.offset..dual_variable.offset + dual_variable.size].to_vec())
+    }
+
+__PARAM_SETTERS____VARIABLE_GETTERS____DUAL_VARIABLE_GETTERS__}
 
 __FFI_METHODS__
 

@@ -35,6 +35,10 @@ class MetadataTests(GeneratedCodeTestCase):
         self.assertEqual([parameter.name for parameter in spec.parameters], ["A", "b"])
         self.assertEqual(spec.parameters[0].size, 6)
         self.assertEqual([variable.name for variable in spec.variables], ["x"])
+        self.assertEqual(
+            [(dual.name, dual.size, dual.offset) for dual in spec.dual_variables],
+            [("d0", 3, 0), ("d1", 2, 3)],
+        )
 
     def test_generate_code_writes_crate(self):
         problem = self._build_nonneg_ls_problem().problem
@@ -104,8 +108,11 @@ class MetadataTests(GeneratedCodeTestCase):
             self.assertIn("SolveResult", readme_text)
             self.assertNotIn("Lower-level native extension", readme_text)
             self.assertNotIn("result = nonneg_ls.solve(parameter_vector)", readme_text)
-            self.assertIn("Not generated yet", readme_text)
-            self.assertIn("helpers for extracting original constraint duals", readme_text)
+            self.assertNotIn("Not generated yet", readme_text)
+            self.assertNotIn("warm_start", readme_text)
+            self.assertIn("Entry updates use zero-based flattened indices", readme_text)
+            self.assertIn("Canonical Dual Blocks", readme_text)
+            self.assertIn("extract_d1", readme_text)
             self.assertIn("pub fn set_a", readme_text)
             self.assertIn("pub fn update_a", readme_text)
             self.assertIn("pub fn set_solver_max_iter", readme_text)

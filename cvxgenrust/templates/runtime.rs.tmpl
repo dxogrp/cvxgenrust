@@ -172,6 +172,14 @@ pub struct VariableInfo {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub struct DualVariableInfo {
+    pub name: &'static str,
+    pub shape: &'static [usize],
+    pub size: usize,
+    pub offset: usize,
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct ConeDims {
     pub zero: usize,
     pub nonneg: usize,
@@ -209,6 +217,7 @@ pub struct SolveResult {
 pub enum RuntimeError {
     UnknownParameter(String),
     UnknownVariable(String),
+    UnknownDualVariable(String),
     Solver(String),
     DimensionMismatch {
         expected: usize,
@@ -223,6 +232,7 @@ impl fmt::Display for RuntimeError {
         match self {
             RuntimeError::UnknownParameter(name) => write!(f, "unknown parameter `{name}`"),
             RuntimeError::UnknownVariable(name) => write!(f, "unknown variable `{name}`"),
+            RuntimeError::UnknownDualVariable(name) => write!(f, "unknown dual variable `{name}`"),
             RuntimeError::Solver(message) => write!(f, "{message}"),
             RuntimeError::DimensionMismatch {
                 expected,

@@ -51,8 +51,16 @@ class NumericalTests(GeneratedCodeTestCase):
         try:
             first_cvxpy_value = fixture.problem.solve(solver="CLARABEL")
             first_cvxpy_x = np.array(fixture.variables["x"].value, copy=True)
+            first_cvxpy_duals = [
+                np.array(constraint.dual_value, copy=True)
+                for constraint in fixture.problem.constraints
+            ]
             first_generated_value = fixture.problem.solve(method=method_name)
             first_generated_x = np.array(fixture.variables["x"].value, copy=True)
+            first_generated_duals = [
+                np.array(constraint.dual_value, copy=True)
+                for constraint in fixture.problem.constraints
+            ]
 
             fixture.parameters["P"].value = np.array([[0.75, 0.1], [0.1, 3.0]])
             second_cvxpy_value = fixture.problem.solve(solver="CLARABEL")
@@ -71,6 +79,12 @@ class NumericalTests(GeneratedCodeTestCase):
             places=6,
         )
         self.assertTrue(np.allclose(first_generated_x, first_cvxpy_x, atol=1e-5))
+        for generated_dual, cvxpy_dual in zip(
+            first_generated_duals,
+            first_cvxpy_duals,
+            strict=True,
+        ):
+            self.assertTrue(np.allclose(generated_dual, cvxpy_dual, atol=1e-5))
         self.assertAlmostEqual(
             float(second_generated_value),
             float(second_cvxpy_value),
@@ -78,6 +92,7 @@ class NumericalTests(GeneratedCodeTestCase):
         )
         self.assertTrue(np.allclose(second_generated_x, second_cvxpy_x, atol=1e-5))
         self.assertFalse(np.allclose(first_cvxpy_x, second_cvxpy_x, atol=1e-3))
+
 
     def test_socp_matches_cvxpy_solution(self):
         fixture = self._build_socp_problem()

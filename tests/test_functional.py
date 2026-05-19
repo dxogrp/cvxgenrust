@@ -60,9 +60,11 @@ class FunctionalTests(GeneratedCodeTestCase):
                     "    problem.update_b(2, 3.0)?;",
                     "    let solution = problem.solve()?;",
                     '    let x = problem.extract_variable("x", &solution.x)?;',
+                    '    let d1 = problem.extract_d1(&solution.z)?;',
                     '    println!("status = {}", solution.status);',
                     '    println!("objective = {}", solution.obj_val);',
                     '    println!("x = {:?}", x);',
+                    '    println!("d1 = {:?}", d1);',
                     "    Ok(())",
                     "}",
                 ]
