@@ -3,6 +3,7 @@ import tomllib
 from pathlib import Path
 
 import cvxpy as cp
+import pytest
 
 from cvxgenrust import cgr
 from cvxgenrust.generator import CLARABEL_VERSION, extract_problem
@@ -10,6 +11,7 @@ from cvxgenrust.generator import CLARABEL_VERSION, extract_problem
 from tests.support import GeneratedCodeTestCase
 
 
+@pytest.mark.metadata
 class MetadataTests(GeneratedCodeTestCase):
     def test_extract_problem_metadata(self):
         spec = extract_problem(self._build_nonneg_ls_problem().problem, module_name="nonneg_ls")
@@ -56,6 +58,7 @@ class MetadataTests(GeneratedCodeTestCase):
             self.assertIn("updated_params", readme_text)
             self.assertNotIn("examples/solve.py", readme_text)
 
+    @pytest.mark.sdp
     def test_generate_code_enables_sdp_backend_for_psd_cones(self):
         problem = self._build_sdp_problem().problem
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -94,6 +97,7 @@ class MetadataTests(GeneratedCodeTestCase):
         self.assertEqual(spec.parameters[0].pack, "upper_tri")
         self.assertGreater(len(spec.p_map.reduced.data), 0)
 
+    @pytest.mark.sdp
     def test_extract_sdp_problem_metadata(self):
         spec = extract_problem(self._build_sdp_problem().problem, module_name="trace_sdp")
 

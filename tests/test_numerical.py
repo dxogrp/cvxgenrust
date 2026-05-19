@@ -1,8 +1,12 @@
 import numpy as np
+import pytest
 
 from tests.support import GeneratedCodeTestCase
 
 
+@pytest.mark.numerical
+@pytest.mark.python_wrapper
+@pytest.mark.slow
 class NumericalTests(GeneratedCodeTestCase):
     def _solve_with_cvxpy_and_generated(self, fixture, module_name: str):
         cvxpy_value = fixture.problem.solve(solver="CLARABEL")
@@ -92,6 +96,7 @@ class NumericalTests(GeneratedCodeTestCase):
         self.assertAlmostEqual(float(generated_value), float(cvxpy_value), places=6)
         self.assertTrue(np.allclose(generated_solution["x"], cvxpy_solution["x"], atol=1e-5))
 
+    @pytest.mark.sdp
     def test_sdp_matches_cvxpy_solution(self):
         fixture = self._build_sdp_problem()
         cvxpy_value, cvxpy_solution, generated_value, generated_solution = (

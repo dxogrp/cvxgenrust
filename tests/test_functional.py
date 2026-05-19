@@ -3,11 +3,14 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+import pytest
+
 from cvxgenrust import cgr
 
 from tests.support import GeneratedCodeTestCase
 
 
+@pytest.mark.slow
 class FunctionalTests(GeneratedCodeTestCase):
     def _write_nonneg_ls_problem_module(self, path: Path) -> None:
         path.write_text(
@@ -66,6 +69,7 @@ class FunctionalTests(GeneratedCodeTestCase):
         )
         return project_dir
 
+    @pytest.mark.python_wrapper
     def test_python_wrapper_user_workflow_runs(self):
         fixture = self._build_nonneg_ls_problem()
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -89,7 +93,7 @@ class FunctionalTests(GeneratedCodeTestCase):
                         'problem.register_solve("CGR", cgr_solve)',
                         "A.value = np.array([[1.0, 2.0], [0.0, 3.0], [0.0, 0.0]])",
                         "b.value = np.array([1.0, 2.0, 3.0])",
-                        'value = problem.solve(method="CGR", updated_params=["A", "b"])',
+                        'value = problem.solve(method="CGR", updated_params=["A", "b"], release=False)',
                         'print("status =", problem.status)',
                         'print("value =", value)',
                         'print("x =", x.value)',
@@ -109,6 +113,7 @@ class FunctionalTests(GeneratedCodeTestCase):
             self.assertIn("value =", result.stdout)
             self.assertIn("x =", result.stdout)
 
+    @pytest.mark.rust_smoke
     def test_rust_user_workflow_runs(self):
         fixture = self._build_nonneg_ls_problem()
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -128,6 +133,7 @@ class FunctionalTests(GeneratedCodeTestCase):
             self.assertIn("objective =", result.stdout)
             self.assertIn("x =", result.stdout)
 
+    @pytest.mark.rust_smoke
     def test_generated_rust_example_runs(self):
         fixture = self._build_nonneg_ls_problem()
         with tempfile.TemporaryDirectory() as tmpdir:
