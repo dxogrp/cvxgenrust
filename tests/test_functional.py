@@ -119,33 +119,42 @@ class FunctionalTests(GeneratedCodeTestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             workspace = Path(tmpdir)
             output_dir = workspace / "nonneg_ls_cgr"
-            venv_dir = workspace / "venv"
+            site_dir = workspace / "site"
             cgr.generate_code(fixture.problem, code_dir=output_dir, module_name="nonneg_ls", wrapper=False)
             subprocess.run(
-                [sys.executable, "-m", "venv", "--system-site-packages", str(venv_dir)],
+                [sys.executable, "-m", "ensurepip", "--upgrade"],
                 check=True,
                 capture_output=True,
                 text=True,
             )
-            python = venv_dir / ("Scripts" if sys.platform == "win32" else "bin") / (
-                "python.exe" if sys.platform == "win32" else "python"
-            )
             subprocess.run(
-                [str(python), "-m", "pip", "install", "--no-deps", str(output_dir)],
+                [
+                    sys.executable,
+                    "-m",
+                    "pip",
+                    "install",
+                    "--no-deps",
+                    "--target",
+                    str(site_dir),
+                    str(output_dir),
+                ],
                 check=True,
                 capture_output=True,
                 text=True,
                 env=self._cargo_env(),
             )
+            env = self._cargo_env()
+            env["PYTHONPATH"] = str(site_dir)
             result = subprocess.run(
                 [
-                    str(python),
+                    sys.executable,
                     "-c",
                     "from nonneg_ls_cgr.cgr_solver import cgr_solve; from nonneg_ls_cgr import nonneg_ls; print(cgr_solve.__name__, nonneg_ls.solve.__name__)",
                 ],
                 check=True,
                 capture_output=True,
                 text=True,
+                env=env,
             )
             self.assertIn("cgr_solve solve", result.stdout)
 
