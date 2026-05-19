@@ -1,3 +1,5 @@
+import contextlib
+import io
 import tempfile
 import tomllib
 from pathlib import Path
@@ -41,10 +43,16 @@ class MetadataTests(GeneratedCodeTestCase):
             package_version = tomllib.loads(
                 (Path(__file__).resolve().parent.parent / "pyproject.toml").read_text(encoding="utf-8")
             )["project"]["version"]
-            project = cgr.generate_code(problem, code_dir=output_dir, module_name="nonneg_ls", wrapper=False)
+            progress = io.StringIO()
+            with contextlib.redirect_stderr(progress):
+                project = cgr.generate_code(problem, code_dir=output_dir, module_name="nonneg_ls", wrapper=False)
+            progress_text = progress.getvalue()
+            self.assertIn("[CvxGenRust] Extracting problem data", progress_text)
+            self.assertIn("[CvxGenRust] Writing Rust crate and Python package files", progress_text)
+            self.assertIn("[CvxGenRust] Done. Generated solver project", progress_text)
             cargo_toml = output_dir / "Cargo.toml"
             lib_rs = output_dir / "src" / "lib.rs"
-            readme = output_dir / "README.md"
+            readme = output_dir / "README.html"
             package_dir = output_dir / "python" / "nonneg_ls_cgr"
             wrapper = package_dir / "cgr_solver.py"
             pyproject = output_dir / "pyproject.toml"
@@ -53,6 +61,7 @@ class MetadataTests(GeneratedCodeTestCase):
             self.assertTrue(cargo_toml.exists())
             self.assertTrue(lib_rs.exists())
             self.assertTrue(readme.exists())
+            self.assertFalse((output_dir / "README.md").exists())
             self.assertTrue(wrapper.exists())
             self.assertTrue(pyproject.exists())
             self.assertTrue(package_init.exists())
@@ -83,8 +92,11 @@ class MetadataTests(GeneratedCodeTestCase):
             readme_text = readme.read_text(encoding="utf-8")
             self.assertIn('problem.register_solve("CGR", cgr_solve)', readme_text)
             self.assertIn("from nonneg_ls_cgr.cgr_solver import cgr_solve", readme_text)
+            self.assertIn("nonneg_ls_cgr/python", readme_text)
+            self.assertIn("PYTHONPATH", readme_text)
             self.assertIn('method="CGR"', readme_text)
             self.assertIn("updated_params", readme_text)
+            self.assertIn("cargo run --example solve", readme_text)
             self.assertNotIn("examples/solve.py", readme_text)
 
     @pytest.mark.sdp

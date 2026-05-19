@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>CvxGenRust - __MODULE_NAME_TEXT__</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    :root {
+      --ink: #1f2933;
+      --soft-ink: #52606d;
+      --rule: #d7dee8;
+      --paper: #ffffff;
+      --wash: #f5f7fb;
+      --panel: #eef4f8;
+      --rust: #8a4b2a;
+      --teal: #0f766e;
+      --teal-soft: #d9f0ec;
+      --code: #f8fafc;
+      --code-rule: #d8e0ea;
+      --radius: 6px;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--paper);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 15px;
+      line-height: 1.6;
+    }
+    a { color: var(--teal); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code, pre {
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 0.92em;
+    }
+    code {
+      padding: 0.1rem 0.35rem;
+      border: 1px solid var(--code-rule);
+      border-radius: 4px;
+      background: var(--code);
+    }
+    pre {
+      margin: 0.75rem 0 1.1rem;
+      padding: 1rem;
+      overflow-x: auto;
+      border: 1px solid var(--code-rule);
+      border-radius: var(--radius);
+      background: var(--code);
+    }
+    pre code { padding: 0; border: 0; background: transparent; }
+
+    .page-head {
+      border-bottom: 1px solid var(--rule);
+      background:
+        linear-gradient(90deg, rgba(15,118,110,.12), transparent 55%),
+        var(--wash);
+    }
+    .head-inner, main {
+      width: min(1120px, calc(100vw - 40px));
+      margin: 0 auto;
+    }
+    .head-inner { padding: 28px 0 22px; }
+    .brand-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 24px;
+      margin-bottom: 18px;
+    }
+    .brand {
+      margin: 0;
+      font-size: 1.85rem;
+      line-height: 1.15;
+      letter-spacing: 0;
+    }
+    .module-chip {
+      display: inline-block;
+      margin-left: 0.45rem;
+      padding: 0.15rem 0.5rem;
+      color: #083b36;
+      background: var(--teal-soft);
+      border: 1px solid #8ed4cb;
+      border-radius: 999px;
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 0.95rem;
+      vertical-align: middle;
+    }
+    .generated-meta {
+      color: var(--soft-ink);
+      font-size: 0.82rem;
+      text-align: right;
+      white-space: nowrap;
+    }
+    .summary-line {
+      max-width: 760px;
+      margin: 0 0 18px;
+      color: var(--soft-ink);
+    }
+    .quick-nav {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .quick-nav a {
+      padding: 0.38rem 0.7rem;
+      color: var(--ink);
+      border: 1px solid var(--rule);
+      border-radius: 999px;
+      background: #fff;
+      font-size: 0.88rem;
+    }
+
+    main { padding: 32px 0 56px; }
+    section { margin-bottom: 38px; }
+    h2 {
+      margin: 0 0 14px;
+      font-size: 1.25rem;
+      line-height: 1.25;
+      color: #17413d;
+    }
+    h3 {
+      margin: 0 0 8px;
+      font-size: 1rem;
+      color: var(--rust);
+    }
+    p { margin: 0 0 0.9rem; }
+
+    .grid-two {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+    }
+    .info-box {
+      border: 1px solid var(--rule);
+      border-radius: var(--radius);
+      background: #fff;
+      overflow: hidden;
+    }
+    .info-box h3 {
+      padding: 0.75rem 0.9rem;
+      margin: 0;
+      color: #17413d;
+      background: var(--panel);
+      border-bottom: 1px solid var(--rule);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+    }
+    th, td {
+      padding: 0.58rem 0.72rem;
+      text-align: left;
+      border-bottom: 1px solid var(--rule);
+      vertical-align: top;
+    }
+    th { color: var(--soft-ink); font-weight: 650; background: #fbfcfe; }
+    tr:last-child td { border-bottom: 0; }
+    td code { border: 0; background: transparent; padding: 0; }
+
+    .file-browser {
+      display: grid;
+      grid-template-columns: minmax(260px, 0.9fr) minmax(320px, 1.1fr);
+      gap: 18px;
+      align-items: start;
+    }
+    .file-tree {
+      margin: 0;
+      padding: 1rem 1.1rem;
+      border: 1px solid var(--rule);
+      border-radius: var(--radius);
+      background: #fff;
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 0.9rem;
+      line-height: 1.8;
+      list-style: none;
+    }
+    .file-tree ul {
+      margin: 0;
+      padding-left: 1.35rem;
+      list-style: none;
+      border-left: 1px solid var(--rule);
+    }
+    .file-tree li { position: relative; }
+    .file-tree li::before {
+      content: "";
+      position: absolute;
+      left: -1.35rem;
+      top: 0.9rem;
+      width: 0.85rem;
+      border-top: 1px solid var(--rule);
+    }
+    .file-tree > li::before { display: none; }
+    .dir { color: var(--rust); font-weight: 650; }
+    .file { color: #17413d; }
+    .file-notes {
+      display: grid;
+      gap: 10px;
+    }
+    .file-note {
+      padding: 0.8rem 0.9rem;
+      border: 1px solid var(--rule);
+      border-radius: var(--radius);
+      background: #fff;
+    }
+    .file-note strong {
+      display: block;
+      margin-bottom: 0.25rem;
+      color: #17413d;
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 0.88rem;
+    }
+    .file-note p { margin: 0; color: var(--soft-ink); }
+
+    .usage-card {
+      padding: 1rem;
+      border: 1px solid var(--rule);
+      border-radius: var(--radius);
+      background: #fff;
+      margin-bottom: 14px;
+    }
+    @media (max-width: 760px) {
+      .head-inner, main { width: min(100vw - 28px, 1120px); }
+      .brand-row, .grid-two, .file-browser { display: block; }
+      .generated-meta { margin-top: 10px; text-align: left; white-space: normal; }
+      .info-box, .file-tree, .file-note { margin-bottom: 12px; }
+      .brand { font-size: 1.45rem; }
+      .module-chip { display: table; margin: 0.4rem 0 0; }
+    }
+  </style>
+</head>
+<body>
+<header class="page-head">
+  <div class="head-inner">
+    <div class="brand-row">
+      <h1 class="brand">CvxGenRust <span class="module-chip">__MODULE_NAME_TEXT__</span></h1>
+      <div class="generated-meta">Generated by CvxGenRust v__GENERATOR_VERSION__<br>__GENERATED_AT__</div>
+    </div>
+    <p class="summary-line">This directory contains a generated Rust solver crate plus a Python package that registers the solver as a CVXPY custom solve method.</p>
+    <nav class="quick-nav" aria-label="Document sections">
+      <a href="#problem">Problem</a>
+      <a href="#files">Files</a>
+      <a href="#python">Python</a>
+      <a href="#rust">Rust</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section id="problem">
+    <h2>Problem Data</h2>
+    <div class="grid-two">
+      <div class="info-box">
+        <h3>Parameters</h3>
+        <table>
+          <tr><th>Name</th><th>Dimension</th><th>Size</th><th>Offset</th></tr>
+__PARAMETER_ROWS__
+        </table>
+      </div>
+      <div class="info-box">
+        <h3>Variables</h3>
+        <table>
+          <tr><th>Name</th><th>Dimension</th><th>Size</th><th>Offset</th></tr>
+__VARIABLE_ROWS__
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="files">
+    <h2>Generated Files</h2>
+    <div class="file-browser">
+      <ul class="file-tree" aria-label="Generated file tree">
+        <li><span class="dir">__PACKAGE_NAME_TEXT__/</span>
+          <ul>
+            <li><span class="file">Cargo.toml</span></li>
+            <li><span class="file">pyproject.toml</span></li>
+            <li><span class="file">README.html</span></li>
+            <li><span class="dir">src/</span>
+              <ul>
+                <li><span class="file">lib.rs</span></li>
+              </ul>
+            </li>
+            <li><span class="dir">examples/</span>
+              <ul>
+                <li><span class="file">solve.rs</span></li>
+              </ul>
+            </li>
+            <li><span class="dir">python/</span>
+              <ul>
+                <li><span class="dir">__PACKAGE_NAME_TEXT__/</span>
+                  <ul>
+                    <li><span class="file">__init__.py</span></li>
+                    <li><span class="file">cgr_solver.py</span></li>
+                  </ul>
+                </li>
+              </ul>
+            </li>
+          </ul>
+        </li>
+      </ul>
+      <div class="file-notes">
+        <div class="file-note"><strong>Cargo.toml</strong><p>Rust crate manifest for the generated solver. It builds both a regular Rust library and a PyO3 extension module.</p></div>
+        <div class="file-note"><strong>pyproject.toml</strong><p>Python build manifest for maturin. Installing the generated project compiles the PyO3 extension into the package under <code>python/</code>.</p></div>
+        <div class="file-note"><strong>src/lib.rs</strong><p>Generated Rust API. The main entry point is <code>CGRProblem</code>, with parameter setter methods, solve methods, and variable extraction helpers.</p></div>
+        <div class="file-note"><strong>examples/solve.rs</strong><p>Runnable Rust example that initializes placeholder parameter values, solves the problem, and prints the status, objective, and first variable.</p></div>
+        <div class="file-note"><strong>python/__PACKAGE_NAME_TEXT__/cgr_solver.py</strong><p>CVXPY custom solve method. Register <code>cgr_solve</code> on the original CVXPY problem and call <code>problem.solve(method="CGR", updated_params=[...])</code>.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="python">
+    <h2>Python / CVXPY Use</h2>
+    <div class="usage-card">
+      <h3>Import Path</h3>
+      <p>Install the generated package from this directory before importing it:</p>
+      <pre><code>python -m pip install --no-deps .</code></pre>
+      <p>If you are running user code without installing, keep your script anywhere you like and add <code>__PACKAGE_NAME_TEXT__/python</code> to <code>PYTHONPATH</code>, or add that directory to <code>sys.path</code> before importing <code>__PACKAGE_NAME_TEXT__.cgr_solver</code>.</p>
+    </div>
+    <div class="usage-card">
+      <h3>Solve Method</h3>
+      <pre><code>__PYTHON_USAGE__</code></pre>
+    </div>
+  </section>
+
+  <section id="rust">
+    <h2>Rust Use</h2>
+    <div class="usage-card">
+      <pre><code>__RUST_USAGE__</code></pre>
+    </div>
+  </section>
+
+  <section id="build">
+    <h2>Run the Rust Example</h2>
+    <div class="usage-card">
+      <pre><code>cargo run --example solve</code></pre>
+    </div>
+  </section>
+</main>
+</body>
+</html>

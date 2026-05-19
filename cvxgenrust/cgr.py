@@ -10,6 +10,7 @@ def generate_code(
     code_dir: str | Path = "CGR_code",
     module_name: str | None = None,
     wrapper: bool = True,
+    verbose: bool = True,
 ) -> GeneratedRustProject:
     output_dir = Path(code_dir)
     full_module_name = module_name or output_dir.name
@@ -18,4 +19,5 @@ def generate_code(
         code_dir=output_dir,
         module_name=full_module_name,
         wrapper=wrapper,
+        verbose=verbose,
     )
