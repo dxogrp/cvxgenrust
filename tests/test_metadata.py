@@ -5,7 +5,7 @@ from pathlib import Path
 import cvxpy as cp
 
 from cvxgenrust import cgr
-from cvxgenrust.generator import extract_problem
+from cvxgenrust.generator import CLARABEL_VERSION, extract_problem
 
 from tests.support import GeneratedCodeTestCase
 
@@ -41,7 +41,7 @@ class MetadataTests(GeneratedCodeTestCase):
             cargo_text = cargo_toml.read_text(encoding="utf-8")
             self.assertIn("pub struct CGRProblem", lib_rs.read_text(encoding="utf-8"))
             self.assertIn("class CGRProblem", wrapper.read_text(encoding="utf-8"))
-            self.assertIn('clarabel = "0.11.1"', cargo_text)
+            self.assertIn(f'clarabel = "{CLARABEL_VERSION}"', cargo_text)
             self.assertNotIn('features = ["sdp-accelerate"]', cargo_text)
             self.assertNotIn('features = ["sdp-openblas"]', cargo_text)
             self.assertIn('crate-type = ["rlib", "cdylib"]', cargo_text)

@@ -22,3 +22,6 @@ examples = [
     "marimo>=0.13",
     "matplotlib>=3.9",
 ]
+
+[tool.cvxgenrust]
+clarabel-version = "0.11.1"

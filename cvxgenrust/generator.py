@@ -18,12 +18,22 @@ PYPROJECT_PATH = Path(__file__).resolve().parent.parent / "pyproject.toml"
 GENERATOR_DISPLAY_NAME = "CvxGenRust"
 
 
+def _load_pyproject() -> dict[str, Any]:
+    return tomllib.loads(PYPROJECT_PATH.read_text(encoding="utf-8"))
+
+
 def _load_generator_version() -> str:
-    project_data = tomllib.loads(PYPROJECT_PATH.read_text(encoding="utf-8"))
+    project_data = _load_pyproject()
     return str(project_data["project"]["version"])
 
 
+def _load_clarabel_version() -> str:
+    project_data = _load_pyproject()
+    return str(project_data.get("tool", {}).get("cvxgenrust", {}).get("clarabel-version", "0.11.1"))
+
+
 GENERATOR_VERSION = _load_generator_version()
+CLARABEL_VERSION = _load_clarabel_version()
 
 
 @dataclass
@@ -468,12 +478,12 @@ def _render_generated_lib(spec: ProblemSpec, generated_at: str) -> str:
 def _render_generated_cargo(spec: ProblemSpec, generated_at: str) -> str:
     if spec.cone_dims.psd:
         dependencies = """[target.'cfg(target_os = "macos")'.dependencies]
-clarabel = { version = "0.11.1", features = ["sdp-accelerate"] }
+clarabel = { version = "__CLARABEL_VERSION__", features = ["sdp-accelerate"] }
 
 [target.'cfg(not(target_os = "macos"))'.dependencies]
-clarabel = { version = "0.11.1", features = ["sdp-openblas"] }"""
+clarabel = { version = "__CLARABEL_VERSION__", features = ["sdp-openblas"] }"""
     else:
-        dependencies = 'clarabel = "0.11.1"'
+        dependencies = 'clarabel = "__CLARABEL_VERSION__"'
     return _fill_template(
         _load_template("Cargo.toml.tmpl"),
         HEADER=_generated_header(
@@ -484,7 +494,7 @@ clarabel = { version = "0.11.1", features = ["sdp-openblas"] }"""
         ),
         CRATE_NAME=spec.module_name,
         LIB_NAME=spec.module_name.replace("-", "_"),
-        DEPENDENCIES=dependencies,
+        DEPENDENCIES=dependencies.replace("__CLARABEL_VERSION__", CLARABEL_VERSION),
     )
 
 
