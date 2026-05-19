@@ -550,7 +550,7 @@ def _render_generated_lib(spec: ProblemSpec, generated_at: str) -> str:
             _load_template("runtime.rs.tmpl"),
             HEADER=_generated_header(
                 "//",
-                "Rust runtime support",
+                "Rust solver backend with canonicalization maps, Clarabel integration, and Python bindings",
                 generated_at,
                 module_name=spec.module_name,
             ),
@@ -574,7 +574,7 @@ def _render_generated_pyproject(spec: ProblemSpec, package_name: str, generated_
         _load_template("pyproject.toml.tmpl"),
         HEADER=_generated_header(
             "#",
-            "Python package manifest",
+            "Python build manifest for compiling the generated PyO3 extension with maturin",
             generated_at,
             module_name=spec.module_name,
         ),
@@ -591,7 +591,7 @@ def _render_generated_pyproject(spec: ProblemSpec, package_name: str, generated_
 def _render_generated_init(spec: ProblemSpec, generated_at: str) -> str:
     return _generated_header(
         "#",
-        "Python package initializer",
+        "Generated Python solver module init file",
         generated_at,
         module_name=spec.module_name,
     ) + "\n"
@@ -610,7 +610,7 @@ clarabel = { version = "__CLARABEL_VERSION__", features = ["sdp-openblas"] }"""
         _load_template("Cargo.toml.tmpl"),
         HEADER=_generated_header(
             "#",
-            "Cargo manifest",
+            "Cargo manifest for the generated solver crate",
             generated_at,
             module_name=spec.module_name,
         ),
@@ -724,7 +724,7 @@ def _render_generated_python_wrapper(spec: ProblemSpec, generated_at: str) -> st
         _load_template("cgr_solver.py.tmpl"),
         HEADER=_generated_header(
             "#",
-            "Python wrapper metadata",
+            "CVXPY solve-method wrapper for the generated solver",
             generated_at,
             module_name=spec.module_name,
         ),
