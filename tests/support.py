@@ -32,7 +32,7 @@ class GeneratedCodeTestCase(unittest.TestCase):
 
     def _load_generated_module(self, problem, module_name: str):
         unique_name = f"{module_name}_{uuid.uuid4().hex[:8]}"
-        tmpdir = tempfile.TemporaryDirectory()
+        tmpdir = tempfile.TemporaryDirectory(ignore_cleanup_errors=(sys.platform == "win32"))
         os.environ.setdefault(
             "CARGO_TARGET_DIR",
             str(Path(tempfile.gettempdir()) / "cvxgenrust-cargo-target"),
