@@ -42,6 +42,40 @@ class NumericalTests(GeneratedCodeTestCase):
         self.assertAlmostEqual(float(generated_value), float(cvxpy_value), places=6)
         self.assertTrue(np.allclose(generated_solution["x"], cvxpy_solution["x"], atol=1e-5))
 
+    def test_parametric_quad_form_matches_cvxpy_solution_after_update(self):
+        fixture = self._build_parametric_quad_form_problem()
+        tmpdir, method_name, _module = self._load_generated_module(fixture.problem, "param_qp")
+        try:
+            first_cvxpy_value = fixture.problem.solve(solver="CLARABEL")
+            first_cvxpy_x = np.array(fixture.variables["x"].value, copy=True)
+            first_generated_value = fixture.problem.solve(method=method_name)
+            first_generated_x = np.array(fixture.variables["x"].value, copy=True)
+
+            fixture.parameters["P"].value = np.array([[0.75, 0.1], [0.1, 3.0]])
+            second_cvxpy_value = fixture.problem.solve(solver="CLARABEL")
+            second_cvxpy_x = np.array(fixture.variables["x"].value, copy=True)
+            second_generated_value = fixture.problem.solve(
+                method=method_name,
+                updated_params=["P"],
+            )
+            second_generated_x = np.array(fixture.variables["x"].value, copy=True)
+        finally:
+            self._clear_generated_module(tmpdir, method_name)
+
+        self.assertAlmostEqual(
+            float(first_generated_value),
+            float(first_cvxpy_value),
+            places=6,
+        )
+        self.assertTrue(np.allclose(first_generated_x, first_cvxpy_x, atol=1e-5))
+        self.assertAlmostEqual(
+            float(second_generated_value),
+            float(second_cvxpy_value),
+            places=6,
+        )
+        self.assertTrue(np.allclose(second_generated_x, second_cvxpy_x, atol=1e-5))
+        self.assertFalse(np.allclose(first_cvxpy_x, second_cvxpy_x, atol=1e-3))
+
     def test_socp_matches_cvxpy_solution(self):
         fixture = self._build_socp_problem()
         fixture.parameters["A"].value = np.array(

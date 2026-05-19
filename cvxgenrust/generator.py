@@ -1,6 +1,5 @@
 from __future__ import annotations
 from datetime import datetime
-import json
 import keyword
 import math
 import re
@@ -62,6 +61,7 @@ class ParameterSpec:
     shape: tuple[int, ...]
     size: int
     offset: int
+    pack: str | None = None
 
 
 @dataclass
@@ -235,11 +235,32 @@ def _zero_csc_map_spec(rows: int, cols: int, parameter_vec_len: int) -> AffineCs
     )
 
 
+def _parameter_pack_kind(
+    internal_parameter: cp.Parameter,
+    original_parameters_by_name: dict[str, cp.Parameter],
+) -> str | None:
+    original_parameter = original_parameters_by_name.get(internal_parameter.name() or "")
+    if original_parameter is None:
+        return None
+
+    original_shape = tuple(int(x) for x in original_parameter.shape)
+    if len(original_shape) != 2 or original_shape[0] != original_shape[1]:
+        return None
+
+    n = original_shape[0]
+    if (
+        int(internal_parameter.size) == n * (n + 1) // 2
+        and int(original_parameter.size) == n * n
+    ):
+        return "upper_tri"
+    return None
+
+
 def extract_problem(
     problem: cp.Problem,
     module_name: str = "generated_problem",
 ) -> ProblemSpec:
-    if not problem.is_dpp():
+    if not problem.is_dpp(quad_form_dpp="qp"):
         raise ValueError("problem must satisfy CVXPY's DPP rules for code generation")
     cvxpy_solver = cp.CLARABEL
     data, _, _ = problem.get_problem_data(cvxpy_solver)
@@ -257,6 +278,11 @@ def extract_problem(
     linear_obj_map = _extract_vector_map(linear_obj_tensor)
     dims = _extract_cone_dims(data["dims"])
     parameters = []
+    original_parameters_by_name = {
+        parameter.name(): parameter
+        for parameter in problem.parameters()
+        if parameter.name() is not None
+    }
     for parameter in param_prob.parameters:
         name = parameter.name() or f"param_{parameter.id}"
         offset = int(param_prob.param_id_to_col[parameter.id])
@@ -266,6 +292,7 @@ def extract_problem(
                 shape=tuple(int(x) for x in parameter.shape),
                 size=int(parameter.size),
                 offset=offset,
+                pack=_parameter_pack_kind(parameter, original_parameters_by_name),
             )
         )
 
@@ -547,24 +574,25 @@ print(problem.status)
 
 def _render_generated_python_wrapper(spec: ProblemSpec, generated_at: str) -> str:
     parameter_entries = ",\n    ".join(
-        json.dumps(
-            {
-                "name": parameter.name,
-                "shape": list(parameter.shape),
-                "size": parameter.size,
-                "offset": parameter.offset,
-            }
+        repr(
+            dict(
+                name=parameter.name,
+                shape=list(parameter.shape),
+                size=parameter.size,
+                offset=parameter.offset,
+                pack=parameter.pack,
+            )
         )
         for parameter in spec.parameters
     )
     variable_entries = ",\n    ".join(
-        json.dumps(
-            {
-                "name": variable.name,
-                "shape": list(variable.shape),
-                "size": variable.size,
-                "offset": variable.offset,
-            }
+        repr(
+            dict(
+                name=variable.name,
+                shape=list(variable.shape),
+                size=variable.size,
+                offset=variable.offset,
+            )
         )
         for variable in spec.variables
     )

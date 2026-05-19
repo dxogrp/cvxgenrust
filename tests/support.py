@@ -67,6 +67,17 @@ class GeneratedCodeTestCase(unittest.TestCase):
             parameters={"x_ref": x_ref, "q": q, "A": A, "b": b},
         )
 
+    def _build_parametric_quad_form_problem(self):
+        x = cp.Variable(2, name="x")
+        P = cp.Parameter((2, 2), PSD=True, name="P")
+        q = cp.Parameter(2, name="q")
+        objective = cp.quad_form(x, P) + q @ x
+        constraints = [cp.sum(x) == 1, x >= 0]
+        problem = cp.Problem(cp.Minimize(objective), constraints)
+        P.value = np.array([[2.0, 0.25], [0.25, 1.0]])
+        q.value = np.array([-1.0, -0.25])
+        return ProblemFixture(problem=problem, variables={"x": x}, parameters={"P": P, "q": q})
+
     def _build_socp_problem(self):
         x = cp.Variable(3, name="x")
         A = cp.Parameter((4, 3), name="A")

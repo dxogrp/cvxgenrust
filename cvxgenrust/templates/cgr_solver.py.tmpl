@@ -37,7 +37,7 @@ class CGRProblem:
         parameter = next((item for item in PARAMETERS if item["name"] == name), None)
         if parameter is None:
             raise KeyError(f"unknown parameter `{name}`")
-        data = _flatten_parameter_value(value)
+        data = _flatten_parameter_value(value, pack=parameter.get("pack"))
         if len(data) != parameter["size"]:
             raise ValueError(
                 f"parameter `{name}` expects {parameter['size']} values, got {len(data)}"
@@ -56,18 +56,24 @@ class CGRProblem:
 __PARAM_HELPERS__
 
 
-def _flatten_parameter_value(value) -> list[float]:
+def _flatten_parameter_value(value, pack=None) -> list[float]:
     try:
         import numpy as np
-        return np.asarray(value).flatten(order="F").tolist()
     except Exception:
         if isinstance(value, (list, tuple)):
             return list(value)
         return [value]
+    array = np.asarray(value)
+    if pack == "upper_tri" and array.ndim == 2:
+        rows, cols = array.shape
+        if rows != cols:
+            raise ValueError("upper-triangular parameter packing requires a square matrix")
+        return array[np.triu_indices(rows)].tolist()
+    return array.flatten(order="F").tolist()
 
 
-def _flatten_parameter(parameter) -> list[float]:
-    return _flatten_parameter_value(parameter.value)
+def _flatten_parameter(parameter, metadata) -> list[float]:
+    return _flatten_parameter_value(parameter.value, pack=metadata.get("pack"))
 
 
 def _build_solver_library(crate_dir: Path, release: bool = DEFAULT_RELEASE_BUILD) -> Path:
@@ -175,7 +181,8 @@ def _sync_parameters(problem, updated_params=None) -> list[float]:
     for parameter in problem.parameters():
         name = parameter.name()
         if name in names_to_update:
-            generated_problem.set_parameter(name, _flatten_parameter(parameter))
+            metadata = next(item for item in PARAMETERS if item["name"] == name)
+            generated_problem.set_parameter(name, _flatten_parameter(parameter, metadata))
 
     return generated_problem.parameter_vector()
 

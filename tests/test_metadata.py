@@ -68,6 +68,20 @@ class MetadataTests(GeneratedCodeTestCase):
         self.assertEqual(spec.module_name, "regularized_socp")
         self.assertEqual(spec.cone_dims.soc, [4])
 
+    def test_extract_parametric_quad_form_metadata(self):
+        spec = extract_problem(
+            self._build_parametric_quad_form_problem().problem,
+            module_name="param_qp",
+        )
+
+        self.assertEqual(spec.module_name, "param_qp")
+        self.assertEqual(
+            [(parameter.name, parameter.size) for parameter in spec.parameters],
+            [("P", 3), ("q", 2)],
+        )
+        self.assertEqual(spec.parameters[0].pack, "upper_tri")
+        self.assertGreater(len(spec.p_map.reduced.data), 0)
+
     def test_extract_sdp_problem_metadata(self):
         spec = extract_problem(self._build_sdp_problem().problem, module_name="trace_sdp")
 
