@@ -15,9 +15,6 @@ PARAMETERS = [
     __PARAMETER_ENTRIES__
 ]
 
-DEFAULT_RELEASE_BUILD = True
-
-
 class GeneratedRustClarabel(CLARABEL):
     def name(self):
         return "__SOLVER_METHOD_NAME__"
@@ -105,12 +102,6 @@ def cgr_solve(problem, updated_params=None, **kwargs):
             "warm_start is accepted for API compatibility but is not used by the generated Rust solver",
             stacklevel=2,
         )
-    if "release" in kwargs:
-        warnings.warn(
-            "release is ignored by the PyO3 wrapper because the native module is built during installation",
-            stacklevel=2,
-        )
-        kwargs.pop("release")
 
     chain, inverse_data = _get_cached_reduction(problem, kwargs)
     parameter_vector = _sync_parameters(problem, updated_params=updated_params)

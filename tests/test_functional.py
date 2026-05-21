@@ -97,7 +97,7 @@ class FunctionalTests(GeneratedCodeTestCase):
                         'problem.register_solve("CGR", cgr_solve)',
                         "A.value = np.array([[1.0, 2.0], [0.0, 3.0], [0.0, 0.0]])",
                         "b.value = np.array([1.0, 2.0, 3.0])",
-                        'value = problem.solve(method="CGR", updated_params=["A", "b"], release=False)',
+                        'value = problem.solve(method="CGR", updated_params=["A", "b"])',
                         'print("status =", problem.status)',
                         'print("value =", value)',
                         'print("x =", x.value)',

@@ -205,7 +205,8 @@ def _ensure_pip_available() -> None:
 
 
 def _compile_python_wrapper(output_dir: Path) -> None:
-    python_source_dir = output_dir / "python"
+    output_dir = output_dir.resolve()
+    python_source_dir = output_dir
     python_source_dir.mkdir(parents=True, exist_ok=True)
     _ensure_pip_available()
     subprocess.run(
@@ -957,7 +958,7 @@ def generate_code(
     generated_at = datetime.now().astimezone().isoformat(timespec="seconds")
 
     src_dir = output_dir / "src"
-    package_dir = output_dir / "python" / package_name
+    package_dir = output_dir / package_name
     progress("Creating output directories")
     src_dir.mkdir(parents=True, exist_ok=True)
     package_dir.mkdir(parents=True, exist_ok=True)
@@ -1011,6 +1012,9 @@ def generate_code(
         for egg_info_dir in output_dir.glob("*.egg-info"):
             if egg_info_dir.is_dir():
                 shutil.rmtree(egg_info_dir)
+        for dist_info_dir in output_dir.glob(f"{package_name}-*.dist-info"):
+            if dist_info_dir.is_dir():
+                shutil.rmtree(dist_info_dir)
 
     if wrapper:
         progress("Compiling Python extension wrapper")
@@ -1021,5 +1025,5 @@ def generate_code(
         spec=spec,
         output_dir=output_dir,
         package_name=package_name,
-        python_source_dir=output_dir / "python",
+        python_source_dir=output_dir,
     )
