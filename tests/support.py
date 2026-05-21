@@ -37,10 +37,14 @@ class GeneratedCodeTestCase(unittest.TestCase):
             "CARGO_TARGET_DIR",
             str(Path(tempfile.gettempdir()) / "cvxgenrust-cargo-target"),
         )
-        project = cgr.generate_code(problem, code_dir=tmpdir.name, module_name=unique_name)
-        python_source_dir = str(project.python_source_dir)
+        project = cgr.generate_code(
+            problem,
+            code_dir=Path(tmpdir.name) / unique_name,
+            module_name=unique_name,
+        )
+        python_source_dir = str(project.output_dir / "python")
         sys.path.insert(0, python_source_dir)
-        package_name = project.package_name
+        package_name = Path(project.output_dir).name
         method_name = f"{unique_name}_cgr"
         module = importlib.import_module(f"{package_name}.cgr_solver")
         setattr(tmpdir, "cgr_python_source_dir", python_source_dir)

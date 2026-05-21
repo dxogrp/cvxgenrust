@@ -35,8 +35,7 @@ class MetadataTests(GeneratedCodeTestCase):
             project = cgr.generate_code(problem, code_dir=output_dir, wrapper=False)
 
             self.assertEqual(project.spec.module_name, "cgr_module")
-            self.assertEqual(project.package_name, "custom_output")
-            self.assertEqual(project.python_source_dir, output_dir / "python")
+            self.assertEqual(project.output_dir, output_dir)
             self.assertIn(
                 'module-name = "custom_output.cgr_module"',
                 (output_dir / "pyproject.toml").read_text(encoding="utf-8"),

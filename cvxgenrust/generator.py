@@ -140,8 +140,6 @@ class ProblemSpec:
 class GeneratedRustProject:
     spec: ProblemSpec
     output_dir: Path
-    package_name: str
-    python_source_dir: Path
 
 
 def _snake_case(name: str) -> str:
@@ -998,6 +996,4 @@ def generate_code(
     return GeneratedRustProject(
         spec=spec,
         output_dir=output_dir,
-        package_name=package_name,
-        python_source_dir=output_dir / "python",
     )

@@ -89,7 +89,7 @@ class FunctionalTests(GeneratedCodeTestCase):
                         "import numpy as np",
                         "",
                         "ROOT = Path(__file__).resolve().parent",
-                        f"sys.path.insert(0, {str(project.python_source_dir)!r})",
+                        f"sys.path.insert(0, {str(project.output_dir / 'python')!r})",
                         "",
                         "from nonneg_ls_cgr.cgr_solver import cgr_solve",
                         "from nonneg_ls import problem, A, b, x",
