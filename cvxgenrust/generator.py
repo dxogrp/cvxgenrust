@@ -174,6 +174,7 @@ def _python_install_command(target_dir: Path, project_dir: Path) -> list[str]:
         "-m",
         "pip",
         "install",
+        "--disable-pip-version-check",
         "--no-deps",
         "--target",
         str(target_dir),
