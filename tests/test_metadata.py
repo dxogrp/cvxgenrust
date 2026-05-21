@@ -57,6 +57,7 @@ class MetadataTests(GeneratedCodeTestCase):
             cargo_toml = output_dir / "Cargo.toml"
             lib_rs = output_dir / "src" / "lib.rs"
             readme = output_dir / "README.html"
+            license_file = output_dir / "LICENSE"
             package_dir = output_dir / "python" / "nonneg_ls_cgr"
             wrapper = package_dir / "cgr_solver.py"
             pyproject = output_dir / "pyproject.toml"
@@ -65,6 +66,7 @@ class MetadataTests(GeneratedCodeTestCase):
             self.assertTrue(cargo_toml.exists())
             self.assertTrue(lib_rs.exists())
             self.assertTrue(readme.exists())
+            self.assertTrue(license_file.exists())
             self.assertFalse((output_dir / "README.md").exists())
             self.assertTrue(wrapper.exists())
             self.assertTrue(pyproject.exists())
@@ -76,6 +78,7 @@ class MetadataTests(GeneratedCodeTestCase):
             self.assertIn("def cgr_solve", wrapper.read_text(encoding="utf-8"))
             self.assertIn("pyo3", cargo_text)
             self.assertIn('version = "0.1.0"', cargo_text)
+            self.assertIn('license = "Apache-2.0"', cargo_text)
             self.assertIn(f'clarabel = "{CLARABEL_VERSION}"', cargo_text)
             self.assertNotIn('features = ["sdp-accelerate"]', cargo_text)
             self.assertNotIn('features = ["sdp-openblas"]', cargo_text)
@@ -83,6 +86,7 @@ class MetadataTests(GeneratedCodeTestCase):
             pyproject_text = pyproject.read_text(encoding="utf-8")
             self.assertIn('name = "nonneg-ls-cgr"', pyproject_text)
             self.assertIn('version = "0.1.0"', pyproject_text)
+            self.assertIn('license = "Apache-2.0"', pyproject_text)
             self.assertIn(f'requires-python = "{GENERATED_REQUIRES_PYTHON}"', pyproject_text)
             self.assertIn('module-name = "nonneg_ls_cgr.nonneg_ls"', pyproject_text)
             self.assertIn('python-source = "python"', pyproject_text)
@@ -94,6 +98,11 @@ class MetadataTests(GeneratedCodeTestCase):
             self.assertIn("Generated at:", lib_rs.read_text(encoding="utf-8"))
             self.assertIn("wrap_pyfunction!(solve", lib_rs.read_text(encoding="utf-8"))
             readme_text = readme.read_text(encoding="utf-8")
+            license_text = license_file.read_text(encoding="utf-8")
+            self.assertIn("Apache License", license_text)
+            self.assertIn("Generated CvxGenRust support code", license_text)
+            self.assertIn("source optimization problem", license_text)
+            self.assertIn("user-provided data", license_text)
             self.assertIn('problem.register_solve("CGR", cgr_solve)', readme_text)
             self.assertIn("from nonneg_ls_cgr.cgr_solver import cgr_solve", readme_text)
             self.assertNotIn("python/nonneg_ls_cgr/cgr_solver.py</h3>", readme_text)
