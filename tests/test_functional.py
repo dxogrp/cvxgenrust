@@ -91,7 +91,7 @@ class FunctionalTests(GeneratedCodeTestCase):
                         "ROOT = Path(__file__).resolve().parent",
                         f"sys.path.insert(0, {str(project.output_dir / 'python')!r})",
                         "",
-                        "from nonneg_ls_cgr.cgr_solver import cgr_solve",
+                        "from nonneg_ls_wrapper.cgr_solver import cgr_solve",
                         "from nonneg_ls import problem, A, b, x",
                         "",
                         'problem.register_solve("CGR", cgr_solve)',
@@ -154,7 +154,7 @@ class FunctionalTests(GeneratedCodeTestCase):
                 [
                     sys.executable,
                     "-c",
-                    "from nonneg_ls_cgr.cgr_solver import cgr_solve; from nonneg_ls_cgr import nonneg_ls; print(cgr_solve.__name__, nonneg_ls.solve.__name__)",
+                    "from nonneg_ls_wrapper.cgr_solver import cgr_solve; from nonneg_ls_wrapper import nonneg_ls; print(cgr_solve.__name__, nonneg_ls.solve.__name__)",
                 ],
                 check=True,
                 capture_output=True,

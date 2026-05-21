@@ -37,7 +37,7 @@ class MetadataTests(GeneratedCodeTestCase):
             self.assertEqual(project.spec.module_name, "cgr_module")
             self.assertEqual(project.output_dir, output_dir)
             self.assertIn(
-                'module-name = "custom_output.cgr_module"',
+                'module-name = "cgr_module_wrapper.cgr_module"',
                 (output_dir / "pyproject.toml").read_text(encoding="utf-8"),
             )
 
@@ -71,7 +71,7 @@ class MetadataTests(GeneratedCodeTestCase):
             lib_rs = output_dir / "src" / "lib.rs"
             readme = output_dir / "README.html"
             license_file = output_dir / "LICENSE"
-            package_dir = output_dir / "python" / "nonneg_ls_cgr"
+            package_dir = output_dir / "python" / "nonneg_ls_wrapper"
             wrapper = package_dir / "cgr_solver.py"
             pyproject = output_dir / "pyproject.toml"
             package_init = package_dir / "__init__.py"
@@ -96,11 +96,11 @@ class MetadataTests(GeneratedCodeTestCase):
             self.assertNotIn('features = ["sdp-openblas"]', cargo_text)
             self.assertIn('crate-type = ["rlib", "cdylib"]', cargo_text)
             pyproject_text = pyproject.read_text(encoding="utf-8")
-            self.assertIn('name = "nonneg-ls-cgr"', pyproject_text)
+            self.assertIn('name = "nonneg-ls-wrapper"', pyproject_text)
             self.assertIn('version = "0.1.0"', pyproject_text)
             self.assertIn('license = "Apache-2.0"', pyproject_text)
             self.assertIn(f'requires-python = "{GENERATED_REQUIRES_PYTHON}"', pyproject_text)
-            self.assertIn('module-name = "nonneg_ls_cgr.nonneg_ls"', pyproject_text)
+            self.assertIn('module-name = "nonneg_ls_wrapper.nonneg_ls"', pyproject_text)
             self.assertIn('python-source = "python"', pyproject_text)
             for dependency in GENERATED_PYTHON_DEPENDENCIES:
                 self.assertIn(f'"{dependency}"', pyproject_text)
@@ -116,8 +116,8 @@ class MetadataTests(GeneratedCodeTestCase):
             self.assertIn("source optimization problem", license_text)
             self.assertIn("user-provided data", license_text)
             self.assertIn('problem.register_solve("CGR", cgr_solve)', readme_text)
-            self.assertIn("from nonneg_ls_cgr.cgr_solver import cgr_solve", readme_text)
-            self.assertNotIn("python/nonneg_ls_cgr/cgr_solver.py</h3>", readme_text)
+            self.assertIn("from nonneg_ls_wrapper.cgr_solver import cgr_solve", readme_text)
+            self.assertNotIn("python/nonneg_ls_wrapper/cgr_solver.py</h3>", readme_text)
             self.assertIn("nonneg_ls_cgr/python", readme_text)
             self.assertIn("PYTHONPATH", readme_text)
             self.assertIn('method="CGR"', readme_text)

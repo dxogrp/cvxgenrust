@@ -692,7 +692,9 @@ clarabel = { version = "__CLARABEL_VERSION__", features = ["sdp-openblas"] }"""
     )
 
 
-def _render_generated_readme(spec: ProblemSpec, package_name: str, generated_at: str) -> str:
+def _render_generated_readme(
+    spec: ProblemSpec, package_name: str, output_dir_name: str, generated_at: str
+) -> str:
     def code(value: str) -> str:
         return html.escape(value, quote=False)
 
@@ -864,6 +866,7 @@ pub struct SolveResult {
         MODULE_NAME_TEXT=code(spec.module_name),
         PACKAGE_NAME=attr(package_name),
         PACKAGE_NAME_TEXT=code(package_name),
+        OUTPUT_DIR_NAME_TEXT=code(output_dir_name),
         GENERATED_AT=code(generated_at),
         GENERATOR_VERSION=code(GENERATOR_VERSION),
         PARAMETER_ROWS=parameter_rows,
@@ -945,7 +948,7 @@ def generate_code(
 ) -> GeneratedRustProject:
     output_dir = Path(code_dir)
     module = module_name
-    package_name = _python_package_name(output_dir.name)
+    package_name = _python_package_name(f"{module_name}_wrapper")
 
     def progress(message: str) -> None:
         if verbose:
@@ -976,7 +979,7 @@ def generate_code(
     )
     (src_dir / "lib.rs").write_text(_render_generated_lib(spec, generated_at), encoding="utf-8")
     (output_dir / "README.html").write_text(
-        _render_generated_readme(spec, package_name, generated_at), encoding="utf-8"
+        _render_generated_readme(spec, package_name, output_dir.name, generated_at), encoding="utf-8"
     )
     (package_dir / "cgr_solver.py").write_text(
         _render_generated_python_wrapper(spec, generated_at), encoding="utf-8"

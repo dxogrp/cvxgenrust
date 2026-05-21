@@ -283,7 +283,7 @@ __DUAL_VARIABLE_ROWS__
     <h2>Generated Files</h2>
     <div class="file-browser">
       <ul class="file-tree" aria-label="Generated file tree">
-        <li><span class="dir">__PACKAGE_NAME_TEXT__/</span>
+        <li><span class="dir">__OUTPUT_DIR_NAME_TEXT__/</span>
           <ul>
             <li><span class="file">Cargo.toml</span></li>
             <li><span class="file">pyproject.toml</span></li>
@@ -334,9 +334,9 @@ __DUAL_VARIABLE_ROWS__
     <h2>Python / CVXPY Use</h2>
     <div class="usage-card">
       <h3>Import Path</h3>
-      <p>Install the generated package from this directory before importing it:</p>
+      <p>Install the generated package to your working environment from this directory before importing it:</p>
       <pre><code>python -m pip install --no-deps .</code></pre>
-      <p>If you are running user code without installing, add <code>__PACKAGE_NAME_TEXT__/python</code> to <code>PYTHONPATH</code>, or add that directory to <code>sys.path</code>, before importing <code>__PACKAGE_NAME_TEXT__.cgr_solver</code>.</p>
+      <p>If you are running user code without installing, add <code>__OUTPUT_DIR_NAME_TEXT__/python</code> to <code>PYTHONPATH</code>, or add that directory to <code>sys.path</code>, before importing <code>__PACKAGE_NAME_TEXT__.cgr_solver</code>.</p>
     </div>
     <div class="usage-card">
       <h3>Solve Method</h3>
@@ -350,7 +350,7 @@ __DUAL_VARIABLE_ROWS__
       <h3>Cargo Dependency</h3>
       <p>From another Rust crate, add the generated solver as a path dependency:</p>
       <pre><code>[dependencies]
-__MODULE_NAME_TEXT__ = { path = "/path/to/__PACKAGE_NAME_TEXT__" }</code></pre>
+__MODULE_NAME_TEXT__ = { path = "/path/to/__OUTPUT_DIR_NAME_TEXT__" }</code></pre>
     </div>
     <div class="usage-card">
       <h3>Solve Method</h3>
