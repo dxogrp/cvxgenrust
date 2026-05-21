@@ -372,7 +372,7 @@ def _parameter_pack_kind(
 
 def extract_problem(
     problem: cp.Problem,
-    module_name: str = "generated_problem",
+    module_name: str,
 ) -> ProblemSpec:
     if not problem.is_dpp(quad_form_dpp="qp"):
         raise ValueError("problem must satisfy CVXPY's DPP rules for code generation")
@@ -939,13 +939,13 @@ def _render_generated_rust_example(spec: ProblemSpec, generated_at: str) -> str:
 
 def generate_code(
     problem: cp.Problem,
-    code_dir: str | Path = "generated_problem",
-    module_name: str | None = None,
+    code_dir: str | Path,
+    module_name: str,
     wrapper: bool = True,
     verbose: bool = True,
 ) -> GeneratedRustProject:
     output_dir = Path(code_dir)
-    module = module_name or output_dir.name
+    module = module_name
     package_name = _python_package_name(output_dir.name)
 
     def progress(message: str) -> None:
