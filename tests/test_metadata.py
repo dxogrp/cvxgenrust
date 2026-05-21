@@ -36,7 +36,7 @@ class MetadataTests(GeneratedCodeTestCase):
 
             self.assertEqual(project.spec.module_name, "cgr_module")
             self.assertEqual(project.package_name, "custom_output")
-            self.assertEqual(project.python_source_dir, output_dir)
+            self.assertEqual(project.python_source_dir, output_dir / "python")
             self.assertIn(
                 'module-name = "custom_output.cgr_module"',
                 (output_dir / "pyproject.toml").read_text(encoding="utf-8"),
@@ -72,7 +72,7 @@ class MetadataTests(GeneratedCodeTestCase):
             lib_rs = output_dir / "src" / "lib.rs"
             readme = output_dir / "README.html"
             license_file = output_dir / "LICENSE"
-            package_dir = output_dir / "nonneg_ls_cgr"
+            package_dir = output_dir / "python" / "nonneg_ls_cgr"
             wrapper = package_dir / "cgr_solver.py"
             pyproject = output_dir / "pyproject.toml"
             package_init = package_dir / "__init__.py"
@@ -81,7 +81,6 @@ class MetadataTests(GeneratedCodeTestCase):
             self.assertTrue(lib_rs.exists())
             self.assertTrue(readme.exists())
             self.assertTrue(license_file.exists())
-            self.assertFalse((output_dir / "README.md").exists())
             self.assertTrue(wrapper.exists())
             self.assertTrue(pyproject.exists())
             self.assertTrue(package_init.exists())
@@ -103,7 +102,7 @@ class MetadataTests(GeneratedCodeTestCase):
             self.assertIn('license = "Apache-2.0"', pyproject_text)
             self.assertIn(f'requires-python = "{GENERATED_REQUIRES_PYTHON}"', pyproject_text)
             self.assertIn('module-name = "nonneg_ls_cgr.nonneg_ls"', pyproject_text)
-            self.assertNotIn("python-source", pyproject_text)
+            self.assertIn('python-source = "python"', pyproject_text)
             for dependency in GENERATED_PYTHON_DEPENDENCIES:
                 self.assertIn(f'"{dependency}"', pyproject_text)
             self.assertNotIn("from .cgr_solver", package_init.read_text(encoding="utf-8"))
@@ -120,7 +119,7 @@ class MetadataTests(GeneratedCodeTestCase):
             self.assertIn('problem.register_solve("CGR", cgr_solve)', readme_text)
             self.assertIn("from nonneg_ls_cgr.cgr_solver import cgr_solve", readme_text)
             self.assertNotIn("python/nonneg_ls_cgr/cgr_solver.py</h3>", readme_text)
-            self.assertIn("generated <code>nonneg_ls_cgr</code> project directory", readme_text)
+            self.assertIn("nonneg_ls_cgr/python", readme_text)
             self.assertIn("PYTHONPATH", readme_text)
             self.assertIn('method="CGR"', readme_text)
             self.assertIn("updated_params", readme_text)

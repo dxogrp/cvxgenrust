@@ -206,7 +206,7 @@ def _ensure_pip_available() -> None:
 
 def _compile_python_wrapper(output_dir: Path) -> None:
     output_dir = output_dir.resolve()
-    python_source_dir = output_dir
+    python_source_dir = output_dir / "python"
     python_source_dir.mkdir(parents=True, exist_ok=True)
     _ensure_pip_available()
     subprocess.run(
@@ -958,7 +958,7 @@ def generate_code(
     generated_at = datetime.now().astimezone().isoformat(timespec="seconds")
 
     src_dir = output_dir / "src"
-    package_dir = output_dir / package_name
+    package_dir = output_dir / "python" / package_name
     progress("Creating output directories")
     src_dir.mkdir(parents=True, exist_ok=True)
     package_dir.mkdir(parents=True, exist_ok=True)
@@ -980,41 +980,15 @@ def generate_code(
     (output_dir / "README.html").write_text(
         _render_generated_readme(spec, package_name, generated_at), encoding="utf-8"
     )
-    (output_dir / "README.md").unlink(missing_ok=True)
-    (output_dir / "problem.json").unlink(missing_ok=True)
     (package_dir / "cgr_solver.py").write_text(
         _render_generated_python_wrapper(spec, generated_at), encoding="utf-8"
     )
-    stale_root_init = output_dir / "__init__.py"
-    stale_root_wrapper = output_dir / "cgr_solver.py"
-    stale_runtime = output_dir / "_runtime.py"
-    stale_root_init.unlink(missing_ok=True)
-    stale_root_wrapper.unlink(missing_ok=True)
-    stale_runtime.unlink(missing_ok=True)
     examples_dir = output_dir / "examples"
     progress("Writing Rust example")
     examples_dir.mkdir(parents=True, exist_ok=True)
     (examples_dir / "solve.rs").write_text(
         _render_generated_rust_example(spec, generated_at), encoding="utf-8"
     )
-
-    bin_dir = src_dir / "bin"
-    stale_json_solver = bin_dir / "cgr_solve_json.rs"
-    stale_json_solver.unlink(missing_ok=True)
-    if bin_dir.exists() and not any(bin_dir.iterdir()):
-        bin_dir.rmdir()
-    stale_main_rs = src_dir / "main.rs"
-    stale_main_rs.unlink(missing_ok=True)
-    if output_dir.exists():
-        pycache_dir = output_dir / "__pycache__"
-        if pycache_dir.exists():
-            shutil.rmtree(pycache_dir)
-        for egg_info_dir in output_dir.glob("*.egg-info"):
-            if egg_info_dir.is_dir():
-                shutil.rmtree(egg_info_dir)
-        for dist_info_dir in output_dir.glob(f"{package_name}-*.dist-info"):
-            if dist_info_dir.is_dir():
-                shutil.rmtree(dist_info_dir)
 
     if wrapper:
         progress("Compiling Python extension wrapper")
@@ -1025,5 +999,5 @@ def generate_code(
         spec=spec,
         output_dir=output_dir,
         package_name=package_name,
-        python_source_dir=output_dir,
+        python_source_dir=output_dir / "python",
     )

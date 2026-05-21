@@ -298,10 +298,14 @@ __DUAL_VARIABLE_ROWS__
                 <li><span class="file">solve.rs</span></li>
               </ul>
             </li>
-            <li><span class="dir">__PACKAGE_NAME_TEXT__/</span>
+            <li><span class="dir">python/</span>
               <ul>
-                <li><span class="file">__init__.py</span></li>
-                <li><span class="file">cgr_solver.py</span></li>
+                <li><span class="dir">__PACKAGE_NAME_TEXT__/</span>
+                  <ul>
+                    <li><span class="file">__init__.py</span></li>
+                    <li><span class="file">cgr_solver.py</span></li>
+                  </ul>
+                </li>
               </ul>
             </li>
           </ul>
@@ -309,10 +313,10 @@ __DUAL_VARIABLE_ROWS__
       </ul>
       <div class="file-notes">
         <div class="file-note"><strong>Cargo.toml</strong><p>Rust crate manifest for the generated solver. It names the crate, configures <code>rlib</code> and <code>cdylib</code> outputs, and declares Clarabel and PyO3 dependencies.</p></div>
-        <div class="file-note"><strong>pyproject.toml</strong><p>Python build manifest for maturin. It builds the PyO3 extension module into <code>__PACKAGE_NAME_TEXT__/</code> when the generated project is installed.</p></div>
+        <div class="file-note"><strong>pyproject.toml</strong><p>Python build manifest for maturin. It builds the PyO3 extension module into <code>python/__PACKAGE_NAME_TEXT__/</code> when the generated project is installed.</p></div>
         <div class="file-note"><strong>src/lib.rs</strong><p>Generated Rust API and runtime types. It defines sparse matrix containers, canonical problem data, solve results, error types, <code>CGRProblem</code>, parameter setters, solve methods, variable extractors, and the PyO3 module.</p></div>
         <div class="file-note"><strong>examples/solve.rs</strong><p>Runnable Rust example that initializes placeholder parameter values, solves the problem, and prints the status, objective, and first variable.</p></div>
-        <div class="file-note"><strong>__PACKAGE_NAME_TEXT__/cgr_solver.py</strong><p>CVXPY custom solve method. It flattens updated parameters, calls the compiled PyO3 <code>solve(parameter_vector)</code> function, and unpacks results back through CVXPY.</p></div>
+        <div class="file-note"><strong>python/__PACKAGE_NAME_TEXT__/cgr_solver.py</strong><p>CVXPY custom solve method. It flattens updated parameters, calls the compiled PyO3 <code>solve(parameter_vector)</code> function, and unpacks results back through CVXPY.</p></div>
       </div>
     </div>
   </section>
@@ -332,7 +336,7 @@ __DUAL_VARIABLE_ROWS__
       <h3>Import Path</h3>
       <p>Install the generated package from this directory before importing it:</p>
       <pre><code>python -m pip install --no-deps .</code></pre>
-      <p>If you are running user code without installing, keep your script anywhere you like and add the generated <code>__PACKAGE_NAME_TEXT__</code> project directory to <code>PYTHONPATH</code>, or add that directory to <code>sys.path</code> before importing <code>__PACKAGE_NAME_TEXT__.cgr_solver</code>.</p>
+      <p>If you are running user code without installing, add <code>__PACKAGE_NAME_TEXT__/python</code> to <code>PYTHONPATH</code>, or add that directory to <code>sys.path</code>, before importing <code>__PACKAGE_NAME_TEXT__.cgr_solver</code>.</p>
     </div>
     <div class="usage-card">
       <h3>Solve Method</h3>
