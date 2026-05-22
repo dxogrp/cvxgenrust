@@ -339,7 +339,7 @@ def _render_generated_readme(
     def dimension(shape: tuple[int, ...], size: int) -> str:
         if not shape:
             return "scalar"
-        shape_text = " by ".join(str(item) for item in shape)
+        shape_text = " x ".join(str(item) for item in shape)
         return f"{shape_text} ({size})" if size != math.prod(shape) else shape_text
 
     parameter_rows = "\n".join(
