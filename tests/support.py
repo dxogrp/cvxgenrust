@@ -11,7 +11,7 @@ import cvxpy as cp
 import numpy as np
 
 from cvxgenrust import cgr
-from cvxgenrust.generator import _python_package_name
+from cvxgenrust.names import _python_package_name
 
 
 @dataclass

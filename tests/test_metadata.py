@@ -8,13 +8,15 @@ import cvxpy as cp
 import pytest
 
 from cvxgenrust import cgr
-from cvxgenrust.generator import (
+from cvxgenrust.config import (
     CLARABEL_VERSION,
     GENERATED_PYTHON_DEPENDENCIES,
     GENERATED_REQUIRES_PYTHON,
+)
+from cvxgenrust.extract import extract_problem
+from cvxgenrust.names import (
     _python_package_name,
     _snake_case,
-    extract_problem,
 )
 
 from tests.support import GeneratedCodeTestCase

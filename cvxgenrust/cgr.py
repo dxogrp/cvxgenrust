@@ -2,7 +2,8 @@ from pathlib import Path
 
 import cvxpy as cp
 
-from .generator import GeneratedRustProject, generate_code as _generate_code
+from .generator import generate_code as _generate_code
+from .specs import GeneratedRustProject
 
 
 def generate_code(

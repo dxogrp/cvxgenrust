@@ -1,5 +1,5 @@
 from . import cgr
-from .generator import GeneratedRustProject
+from .specs import GeneratedRustProject
 
 generate_code = cgr.generate_code
 
