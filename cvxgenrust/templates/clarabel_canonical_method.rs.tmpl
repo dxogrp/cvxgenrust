@@ -1,3 +1,7 @@
+    /// Builds the canonical quadratic cone program for the current parameters.
+    ///
+    /// This is useful for inspection, debugging, or calling a different solver
+    /// backend. Most users should call [`CGRProblem::solve`] directly.
     pub fn canonical_cone_prob(&self) -> Result<CanonicalConeQp, RuntimeError> {
         __P_REDUCED__
         __P_PATTERN__

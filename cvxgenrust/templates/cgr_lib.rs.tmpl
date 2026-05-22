@@ -12,6 +12,11 @@ static DUAL_VARIABLES: [DualVariableInfo; __DUAL_VARIABLE_COUNT__] = [
     __DUAL_VARIABLES__
 ];
 
+/// Generated solver handle for this CVXPY problem.
+///
+/// A `CGRProblem` owns the current flattened parameter values and Clarabel
+/// settings. Parameters start at zero, and the default Clarabel settings are
+/// used with verbose output disabled.
 pub struct CGRProblem {
     parameter_values: Vec<f64>,
     solver_settings: clarabel::solver::DefaultSettings<f64>,
@@ -24,6 +29,7 @@ impl Default for CGRProblem {
 }
 
 impl CGRProblem {
+    /// Creates a new problem with zero-filled parameters and quiet Clarabel settings.
     pub fn new() -> Self {
         let mut solver_settings = clarabel::solver::DefaultSettings::<f64>::default();
         solver_settings.verbose = false;
@@ -33,61 +39,83 @@ impl CGRProblem {
         }
     }
 
+    /// Returns static metadata for generated parameter blocks.
     pub fn parameter_info(&self) -> &'static [ParameterInfo] {
         &PARAMETERS
     }
 
+    /// Returns static metadata for primal variable blocks in [`SolveResult::x`].
     pub fn variable_info(&self) -> &'static [VariableInfo] {
         &VARIABLES
     }
 
+    /// Returns static metadata for canonical dual blocks in [`SolveResult::z`].
     pub fn dual_variable_info(&self) -> &'static [DualVariableInfo] {
         &DUAL_VARIABLES
     }
 
+    /// Returns the flattened parameter vector used by the canonicalization maps.
+    ///
+    /// The vector contains all parameter entries in generated metadata order,
+    /// followed by a trailing `1.0` constant slot used by affine maps.
     pub fn parameter_vector(&self) -> Vec<f64> {
         let mut out = self.parameter_values.clone();
         out.push(1.0);
         out
     }
 
+    /// Returns the Clarabel settings currently stored on this problem.
     pub fn solver_settings(&self) -> &clarabel::solver::DefaultSettings<f64> {
         &self.solver_settings
     }
 
+    /// Returns mutable access to the Clarabel settings currently stored on this problem.
     pub fn solver_settings_mut(&mut self) -> &mut clarabel::solver::DefaultSettings<f64> {
         &mut self.solver_settings
     }
 
+    /// Resets Clarabel settings to defaults and disables verbose output.
     pub fn set_solver_default_settings(&mut self) {
         self.solver_settings = clarabel::solver::DefaultSettings::<f64>::default();
         self.solver_settings.verbose = false;
     }
 
+    /// Sets Clarabel verbose logging.
     pub fn set_solver_verbose(&mut self, verbose: bool) {
         self.solver_settings.verbose = verbose;
     }
 
+    /// Sets Clarabel's maximum iteration count.
     pub fn set_solver_max_iter(&mut self, max_iter: u32) {
         self.solver_settings.max_iter = max_iter;
     }
 
+    /// Sets Clarabel's time limit in seconds.
     pub fn set_solver_time_limit(&mut self, time_limit: f64) {
         self.solver_settings.time_limit = time_limit;
     }
 
+    /// Sets Clarabel's absolute duality-gap tolerance.
     pub fn set_solver_tol_gap_abs(&mut self, tol_gap_abs: f64) {
         self.solver_settings.tol_gap_abs = tol_gap_abs;
     }
 
+    /// Sets Clarabel's relative duality-gap tolerance.
     pub fn set_solver_tol_gap_rel(&mut self, tol_gap_rel: f64) {
         self.solver_settings.tol_gap_rel = tol_gap_rel;
     }
 
+    /// Sets Clarabel's feasibility tolerance.
     pub fn set_solver_tol_feas(&mut self, tol_feas: f64) {
         self.solver_settings.tol_feas = tol_feas;
     }
 
+    /// Replaces one named parameter block.
+    ///
+    /// `value` must contain exactly the flattened size reported by
+    /// [`CGRProblem::parameter_info`]. Returns [`RuntimeError::UnknownParameter`]
+    /// for an unknown name and [`RuntimeError::DimensionMismatch`] for the wrong
+    /// length.
     pub fn set_parameter(&mut self, name: &str, value: &[f64]) -> Result<(), RuntimeError> {
         let parameter = PARAMETERS
             .iter()
@@ -108,6 +136,11 @@ impl CGRProblem {
         Ok(())
     }
 
+    /// Updates one scalar entry of a named parameter block.
+    ///
+    /// `index` is zero-based within the parameter's flattened block. Returns
+    /// [`RuntimeError::UnknownParameter`] for an unknown name and
+    /// [`RuntimeError::DimensionMismatch`] when `index` is out of bounds.
     pub fn update_parameter_entry(
         &mut self,
         name: &str,
@@ -135,6 +168,11 @@ __CANONICAL_METHOD__
 
 __SOLVE_METHOD__
 
+    /// Extracts one named primal variable block from a solution vector.
+    ///
+    /// Pass [`SolveResult::x`] from this generated solver. Returns
+    /// [`RuntimeError::UnknownVariable`] for an unknown name and
+    /// [`RuntimeError::DimensionMismatch`] if the solution vector is too short.
     pub fn extract_variable(&self, name: &str, solution: &[f64]) -> Result<Vec<f64>, RuntimeError> {
         let variable = VARIABLES
             .iter()
@@ -152,6 +190,11 @@ __SOLVE_METHOD__
         Ok(solution[variable.offset..variable.offset + variable.size].to_vec())
     }
 
+    /// Extracts one named canonical dual block from a dual solution vector.
+    ///
+    /// Pass [`SolveResult::z`] from this generated solver. These blocks are
+    /// canonical dual slices and may not map one-to-one to original CVXPY
+    /// constraints when CVXPY splits constraints during canonicalization.
     pub fn extract_dual_variable(
         &self,
         name: &str,

@@ -69,6 +69,20 @@ def _rust_string(value: str) -> str:
     return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
+def _rustdoc_text(value: str) -> str:
+    return value.replace("\n", " ").replace("\r", " ")
+
+
+def _shape_text(shape: tuple[int, ...]) -> str:
+    if not shape:
+        return "scalar"
+    return " x ".join(str(dim) for dim in shape)
+
+
+def _rustdoc_block(indent: str, lines: list[str]) -> str:
+    return "\n".join(f"{indent}/// {_rustdoc_text(line)}" if line else f"{indent}///" for line in lines)
+
+
 def _rust_usize_slice(values: list[int] | tuple[int, ...]) -> str:
     return "&[" + ", ".join(f"{value}usize" for value in values) + "]"
 
@@ -159,10 +173,21 @@ def _render_generated_lib(spec: ProblemSpec, generated_at: str) -> str:
     for parameter in spec.parameters:
         ident = _rust_ident(parameter.name)
         param_setters.append(
-            f"""    pub fn set_{ident}(&mut self, value: &[f64]) -> Result<(), RuntimeError> {{
+            f"""{_rustdoc_block("    ", [
+                f"Replaces parameter `{parameter.name}`.",
+                "",
+                f"Shape: {_shape_text(parameter.shape)}. Flattened size: {parameter.size}. Offset: {parameter.offset}.",
+                f"`value` must contain exactly {parameter.size} entries in CVXPY's flattened order.",
+            ])}
+    pub fn set_{ident}(&mut self, value: &[f64]) -> Result<(), RuntimeError> {{
         self.set_parameter({_rust_string(parameter.name)}, value)
     }}
 
+{_rustdoc_block("    ", [
+                f"Updates one scalar entry of parameter `{parameter.name}`.",
+                "",
+                f"`index` is zero-based within the flattened {parameter.size}-entry parameter block at offset {parameter.offset}.",
+            ])}
     pub fn update_{ident}(&mut self, index: usize, value: f64) -> Result<(), RuntimeError> {{
         self.update_parameter_entry({_rust_string(parameter.name)}, index, value)
     }}
@@ -173,7 +198,12 @@ def _render_generated_lib(spec: ProblemSpec, generated_at: str) -> str:
     for variable in spec.variables:
         ident = _rust_ident(variable.name)
         variable_getters.append(
-            f"""    pub fn extract_{ident}(&self, solution: &[f64]) -> Result<Vec<f64>, RuntimeError> {{
+            f"""{_rustdoc_block("    ", [
+                f"Extracts primal variable `{variable.name}` from `SolveResult.x`.",
+                "",
+                f"Shape: {_shape_text(variable.shape)}. Flattened size: {variable.size}. Offset: {variable.offset}.",
+            ])}
+    pub fn extract_{ident}(&self, solution: &[f64]) -> Result<Vec<f64>, RuntimeError> {{
         self.extract_variable({_rust_string(variable.name)}, solution)
     }}
 """
@@ -183,7 +213,12 @@ def _render_generated_lib(spec: ProblemSpec, generated_at: str) -> str:
     for dual_variable in spec.dual_variables:
         ident = _rust_ident(dual_variable.name)
         dual_variable_getters.append(
-            f"""    pub fn extract_{ident}(&self, dual_solution: &[f64]) -> Result<Vec<f64>, RuntimeError> {{
+            f"""{_rustdoc_block("    ", [
+                f"Extracts canonical dual block `{dual_variable.name}` from `SolveResult.z`.",
+                "",
+                f"Shape: {_shape_text(dual_variable.shape)}. Flattened size: {dual_variable.size}. Offset: {dual_variable.offset}.",
+            ])}
+    pub fn extract_{ident}(&self, dual_solution: &[f64]) -> Result<Vec<f64>, RuntimeError> {{
         self.extract_dual_variable({_rust_string(dual_variable.name)}, dual_solution)
     }}
 """

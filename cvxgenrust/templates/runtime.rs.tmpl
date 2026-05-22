@@ -2,16 +2,28 @@ __HEADER__
 
 use std::fmt;
 
+/// Sparse matrix in compressed sparse row (CSR) format.
+///
+/// This type is used by generated affine maps. User code normally interacts
+/// with [`CscMatrix`] values returned in [`CanonicalConeQp`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct CsrMatrix {
+    /// Number of matrix rows.
     pub rows: usize,
+    /// Number of matrix columns.
     pub cols: usize,
+    /// Row pointer array with length `rows + 1`.
     pub indptr: Vec<usize>,
+    /// Column index for each stored entry.
     pub indices: Vec<usize>,
+    /// Stored nonzero values, aligned with `indices`.
     pub data: Vec<f64>,
 }
 
 impl CsrMatrix {
+    /// Multiplies this CSR matrix by a dense vector.
+    ///
+    /// Returns [`RuntimeError::DimensionMismatch`] if `rhs.len() != self.cols`.
     pub fn mul_dense_vec(&self, rhs: &[f64]) -> Result<Vec<f64>, RuntimeError> {
         if rhs.len() != self.cols {
             return Err(RuntimeError::DimensionMismatch {
@@ -35,16 +47,26 @@ impl CsrMatrix {
     }
 }
 
+/// Sparse matrix in compressed sparse column (CSC) format.
+///
+/// Clarabel consumes canonical quadratic programs in CSC form. The generated
+/// solver returns these matrices from [`CGRProblem::canonical_cone_prob`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct CscMatrix {
+    /// Number of matrix rows.
     pub rows: usize,
+    /// Number of matrix columns.
     pub cols: usize,
+    /// Column pointer array with length `cols + 1`.
     pub indptr: Vec<usize>,
+    /// Row index for each stored entry.
     pub indices: Vec<usize>,
+    /// Stored nonzero values, aligned with `indices`.
     pub data: Vec<f64>,
 }
 
 impl CscMatrix {
+    /// Converts the sparse matrix to row-major dense storage.
     pub fn to_dense_rows(&self) -> Vec<Vec<f64>> {
         let mut out = vec![vec![0.0; self.cols]; self.rows];
         for col in 0..self.cols {
@@ -55,6 +77,7 @@ impl CscMatrix {
         out
     }
 
+    /// Returns a copy of this matrix with every stored value multiplied by `alpha`.
     pub fn scaled(&self, alpha: f64) -> Self {
         Self {
             rows: self.rows,
@@ -66,21 +89,30 @@ impl CscMatrix {
     }
 }
 
+/// Sparsity pattern for a generated CSC matrix.
 #[derive(Clone, Debug, PartialEq)]
 pub struct MatrixPattern {
+    /// Number of matrix rows.
     pub rows: usize,
+    /// Number of matrix columns.
     pub cols: usize,
+    /// Row index for each stored entry.
     pub indices: Vec<usize>,
+    /// Column pointer array with length `cols + 1`.
     pub indptr: Vec<usize>,
 }
 
+/// Affine map from the flattened parameter vector to CSC matrix values.
 #[derive(Clone, Debug, PartialEq)]
 pub struct AffineCscMap {
+    /// CSR matrix that maps parameters to nonzero CSC values.
     pub reduced: CsrMatrix,
+    /// CSC sparsity pattern for the output matrix.
     pub pattern: MatrixPattern,
 }
 
 impl AffineCscMap {
+    /// Applies the map to a flattened parameter vector.
     pub fn apply(&self, parameter_vector: &[f64]) -> Result<CscMatrix, RuntimeError> {
         let values = self.reduced.mul_dense_vec(parameter_vector)?;
         Ok(CscMatrix {
@@ -93,13 +125,17 @@ impl AffineCscMap {
     }
 }
 
+/// Affine map whose final CSC column stores a vector offset.
 #[derive(Clone, Debug, PartialEq)]
 pub struct AffineOffsetCscMap {
+    /// CSR matrix that maps parameters to matrix and offset values.
     pub reduced: CsrMatrix,
+    /// CSC sparsity pattern including the extra offset column.
     pub pattern: MatrixPattern,
 }
 
 impl AffineOffsetCscMap {
+    /// Applies the map and returns the CSC matrix plus its extracted offset vector.
     pub fn apply(
         &self,
         parameter_vector: &[f64],
@@ -131,13 +167,17 @@ impl AffineOffsetCscMap {
     }
 }
 
+/// Affine map from the flattened parameter vector to a dense vector and constant.
 #[derive(Clone, Debug, PartialEq)]
 pub struct AffineVectorMap {
+    /// CSR matrix that maps parameters to vector entries plus one constant.
     pub reduced: CsrMatrix,
+    /// Number of vector entries before the trailing constant.
     pub output_len: usize,
 }
 
 impl AffineVectorMap {
+    /// Applies the map and returns `(vector, trailing_constant)`.
     pub fn apply(
         &self,
         parameter_vector: &[f64],
@@ -155,75 +195,131 @@ impl AffineVectorMap {
     }
 }
 
+/// Metadata for one CVXPY parameter in the generated flattened parameter vector.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ParameterInfo {
+    /// Original CVXPY parameter name.
     pub name: &'static str,
+    /// Original CVXPY parameter shape.
     pub shape: &'static [usize],
+    /// Number of flattened scalar entries.
     pub size: usize,
+    /// Start offset in [`CGRProblem::parameter_vector`] before the trailing constant slot.
     pub offset: usize,
 }
 
+/// Metadata for one primal variable block in [`SolveResult::x`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct VariableInfo {
+    /// Original CVXPY variable name.
     pub name: &'static str,
+    /// Original CVXPY variable shape.
     pub shape: &'static [usize],
+    /// Number of flattened scalar entries.
     pub size: usize,
+    /// Start offset in [`SolveResult::x`].
     pub offset: usize,
 }
 
+/// Metadata for one canonical dual block in [`SolveResult::z`].
+///
+/// These blocks correspond to CVXPY canonicalization output. They may differ
+/// from original CVXPY constraints if canonicalization split a constraint.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DualVariableInfo {
+    /// Generated canonical dual block name.
     pub name: &'static str,
+    /// Canonical dual block shape.
     pub shape: &'static [usize],
+    /// Number of flattened scalar entries.
     pub size: usize,
+    /// Start offset in [`SolveResult::z`].
     pub offset: usize,
 }
 
+/// Cone dimensions for the canonical Clarabel problem.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ConeDims {
+    /// Number of equality cone rows.
     pub zero: usize,
+    /// Number of nonnegative cone rows.
     pub nonneg: usize,
+    /// Number of exponential cones.
     pub exp: usize,
+    /// Second-order cone dimensions.
     pub soc: Vec<usize>,
+    /// Positive semidefinite triangle cone dimensions.
     pub psd: Vec<usize>,
+    /// Power cone exponents.
     pub p3d: Vec<f64>,
 }
 
+/// Canonical quadratic cone program data passed to Clarabel.
+///
+/// The problem has the form `minimize 1/2 x' P x + c' x + objective_offset`
+/// subject to `A x + s = b`, with `s` constrained by `cones`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CanonicalConeQp {
+    /// Quadratic objective matrix in CSC format.
     pub p: CscMatrix,
+    /// Linear objective vector.
     pub c: Vec<f64>,
+    /// Constant objective offset added back to reported objective values.
     pub objective_offset: f64,
+    /// Constraint matrix in CSC format.
     pub a: CscMatrix,
+    /// Constraint right-hand side vector.
     pub b: Vec<f64>,
+    /// Cone dimensions matching rows of `a` and entries of `b`.
     pub cones: ConeDims,
 }
 
+/// Result returned by [`CGRProblem::solve`] and [`CGRProblem::solve_with_settings`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct SolveResult {
+    /// Primal solution vector in canonical variable order.
     pub x: Vec<f64>,
+    /// Canonical dual solution vector.
     pub z: Vec<f64>,
+    /// Slack solution vector.
     pub s: Vec<f64>,
+    /// Clarabel status string, such as `Solved`.
     pub status: String,
+    /// Primal objective value including the generated objective offset.
     pub obj_val: f64,
+    /// Dual objective value including the generated objective offset.
     pub obj_val_dual: f64,
+    /// Solver-reported elapsed solve time in seconds.
     pub solve_time: f64,
+    /// Solver iteration count.
     pub iterations: u32,
+    /// Final primal residual.
     pub r_prim: f64,
+    /// Final dual residual.
     pub r_dual: f64,
 }
 
+/// Errors returned by the generated Rust solver API.
 #[derive(Clone, Debug, PartialEq)]
 pub enum RuntimeError {
+    /// A requested parameter name does not exist in this generated problem.
     UnknownParameter(String),
+    /// A requested primal variable name does not exist in this generated problem.
     UnknownVariable(String),
+    /// A requested canonical dual block name does not exist in this generated problem.
     UnknownDualVariable(String),
+    /// Clarabel initialization or solve error.
     Solver(String),
+    /// A vector or index was incompatible with the expected flattened size.
     DimensionMismatch {
+        /// Expected vector length or minimum length.
         expected: usize,
+        /// Actual vector length or one-past requested index.
         actual: usize,
+        /// Name of the API input that failed validation.
         name: &'static str,
     },
+    /// Generated canonicalization map data was internally inconsistent.
     MalformedMap(&'static str),
 }
 
