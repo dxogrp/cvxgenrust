@@ -11,7 +11,7 @@ import cvxpy as cp
 import numpy as np
 
 from cvxgenrust import cgr
-from cvxgenrust.names import _python_package_name
+from cvxgenrust.names import _wrapper_package_name
 
 
 @dataclass
@@ -45,7 +45,7 @@ class GeneratedCodeTestCase(unittest.TestCase):
         )
         python_source_dir = str(project.output_dir / "python")
         sys.path.insert(0, python_source_dir)
-        package_name = _python_package_name(f"{project.spec.module_name}_wrapper")
+        package_name = _wrapper_package_name(project.spec.module_name)
         method_name = f"{unique_name}_cgr"
         module = importlib.import_module(f"{package_name}.cgr_solver")
         setattr(tmpdir, "cgr_python_source_dir", python_source_dir)

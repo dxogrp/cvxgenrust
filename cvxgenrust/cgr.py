@@ -2,7 +2,7 @@ from pathlib import Path
 
 import cvxpy as cp
 
-from .generator import generate_code as _generate_code
+from .generator import CodeGenerator
 from .specs import GeneratedRustProject
 
 
@@ -14,10 +14,11 @@ def generate_code(
     verbose: bool = True,
 ) -> GeneratedRustProject:
     output_dir = Path(code_dir)
-    return _generate_code(
-        problem,
-        code_dir=output_dir,
+    return CodeGenerator(
         module_name=module_name,
         wrapper=wrapper,
         verbose=verbose,
+    ).generate(
+        problem,
+        code_dir=output_dir,
     )

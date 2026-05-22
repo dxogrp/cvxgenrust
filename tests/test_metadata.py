@@ -14,9 +14,13 @@ from cvxgenrust.config import (
     GENERATED_REQUIRES_PYTHON,
 )
 from cvxgenrust.extract import extract_problem
+from cvxgenrust.generator import CodeGenerator
 from cvxgenrust.names import (
-    _python_package_name,
+    _python_distribution_name,
+    _rust_ident,
+    _rust_module_name,
     _snake_case,
+    _wrapper_package_name,
 )
 
 from tests.support import GeneratedCodeTestCase
@@ -26,9 +30,17 @@ from tests.support import GeneratedCodeTestCase
 class MetadataTests(GeneratedCodeTestCase):
     def test_generated_name_normalization(self):
         self.assertEqual(_snake_case(""), "cgr_solver")
-        self.assertEqual(_snake_case("class"), "class_solver")
+        self.assertEqual(_snake_case("class"), "class")
         self.assertEqual(_snake_case("Trace SDP"), "trace_sdp")
-        self.assertEqual(_python_package_name("123 solver"), "cgr_123_solver")
+        self.assertEqual(_rust_module_name("123 solver"), "cgr_123_solver")
+        self.assertEqual(_rust_module_name("crate"), "crate_solver")
+        self.assertEqual(_rust_module_name("class"), "class_solver")
+        self.assertEqual(_rust_ident("crate"), "crate_value")
+        self.assertEqual(_rust_ident("class"), "class_value")
+        self.assertEqual(_rust_ident("!!!"), "unnamed_value")
+        self.assertEqual(_wrapper_package_name("Trace SDP"), "trace_sdp_wrapper")
+        self.assertEqual(_wrapper_package_name("class"), "class_solver_wrapper")
+        self.assertEqual(_python_distribution_name("trace_sdp_wrapper"), "trace-sdp-wrapper")
 
     def test_generate_code_uses_default_module_name(self):
         problem = self._build_nonneg_ls_problem().problem
@@ -42,6 +54,44 @@ class MetadataTests(GeneratedCodeTestCase):
                 'module-name = "cgr_module_wrapper.cgr_module"',
                 (output_dir / "pyproject.toml").read_text(encoding="utf-8"),
             )
+
+    def test_generator_class_runs_generation_pipeline(self):
+        problem = self._build_nonneg_ls_problem().problem
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_dir = Path(tmpdir) / "class_output"
+            generator = CodeGenerator(module_name="class_solver", wrapper=False, verbose=False)
+
+            project = generator.generate(problem, code_dir=output_dir)
+
+            self.assertEqual(generator.package_name, "class_solver_wrapper")
+            self.assertEqual(project.spec.module_name, "class_solver")
+            self.assertEqual(project.output_dir, output_dir)
+            self.assertTrue((output_dir / "src" / "lib.rs").exists())
+            self.assertTrue(
+                (output_dir / "python" / "class_solver_wrapper" / "cgr_solver.py").exists()
+            )
+
+    def test_generated_rust_method_name_clashes_raise(self):
+        x = cp.Variable(name="variable")
+        p1 = cp.Parameter(name="a-b")
+        p2 = cp.Parameter(name="a b")
+        p3 = cp.Parameter(name="parameter")
+        problem = cp.Problem(cp.Minimize(cp.sum_squares(x - p1 - p2 - p3)), [x >= 0])
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_dir = Path(tmpdir) / "collision_output"
+            with self.assertRaisesRegex(ValueError, "generated Rust API method name clash") as ctx:
+                cgr.generate_code(
+                    problem,
+                    code_dir=output_dir,
+                    module_name="collision",
+                    wrapper=False,
+                )
+
+            message = str(ctx.exception)
+            self.assertIn("'a-b' and 'a b'", message)
+            self.assertIn("reserved Rust API name 'parameter'", message)
+            self.assertIn("reserved Rust API name 'variable'", message)
 
     def test_extract_problem_metadata(self):
         spec = extract_problem(self._build_nonneg_ls_problem().problem, module_name="nonneg_ls")

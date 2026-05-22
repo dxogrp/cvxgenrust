@@ -13,7 +13,7 @@ from .config import (
     PYO3_VERSION,
     TEMPLATES_DIR,
 )
-from .names import _python_project_name, _rust_ident
+from .names import _python_distribution_name, _rust_ident
 from .specs import (
     ConeDimsSpec,
     CsrMatrixSpec,
@@ -155,7 +155,6 @@ def _render_generated_lib(spec: ProblemSpec, generated_at: str) -> str:
         _render_dual_variable_info(dual_variable)
         for dual_variable in spec.dual_variables
     )
-
     param_setters = []
     for parameter in spec.parameters:
         ident = _rust_ident(parameter.name)
@@ -273,7 +272,7 @@ def _render_generated_pyproject(spec: ProblemSpec, package_name: str, generated_
             generated_at,
             module_name=spec.module_name,
         ),
-        PROJECT_NAME=_python_project_name(package_name),
+        PROJECT_NAME=_python_distribution_name(package_name),
         PACKAGE_NAME=package_name,
         MODULE_NAME=spec.module_name,
         LIB_NAME=spec.module_name.replace("-", "_"),

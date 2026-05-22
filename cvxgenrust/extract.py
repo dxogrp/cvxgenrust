@@ -6,7 +6,7 @@ import cvxpy as cp
 import numpy as np
 import scipy.sparse as sp
 
-from .names import _snake_case
+from .names import _rust_module_name
 from .specs import (
     AffineCscMapSpec,
     AffineVectorMapSpec,
@@ -180,7 +180,7 @@ def extract_problem(
         dual_offset += size
 
     return ProblemSpec(
-        module_name=_snake_case(module_name),
+        module_name=_rust_module_name(module_name),
         parameter_vec_len=parameter_vec_len,
         cone_dims=dims,
         parameters=parameters,
