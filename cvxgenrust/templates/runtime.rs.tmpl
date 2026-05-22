@@ -136,10 +136,7 @@ pub struct AffineOffsetCscMap {
 
 impl AffineOffsetCscMap {
     /// Applies the map and returns the CSC matrix plus its extracted offset vector.
-    pub fn apply(
-        &self,
-        parameter_vector: &[f64],
-    ) -> Result<(CscMatrix, Vec<f64>), RuntimeError> {
+    pub fn apply(&self, parameter_vector: &[f64]) -> Result<(CscMatrix, Vec<f64>), RuntimeError> {
         let values = self.reduced.mul_dense_vec(parameter_vector)?;
         if values.len() != self.pattern.indices.len() {
             return Err(RuntimeError::MalformedMap(
@@ -178,10 +175,7 @@ pub struct AffineVectorMap {
 
 impl AffineVectorMap {
     /// Applies the map and returns `(vector, trailing_constant)`.
-    pub fn apply(
-        &self,
-        parameter_vector: &[f64],
-    ) -> Result<(Vec<f64>, f64), RuntimeError> {
+    pub fn apply(&self, parameter_vector: &[f64]) -> Result<(Vec<f64>, f64), RuntimeError> {
         let out = self.reduced.mul_dense_vec(parameter_vector)?;
         if out.len() != self.output_len + 1 {
             return Err(RuntimeError::MalformedMap(

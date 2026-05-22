@@ -38,15 +38,10 @@
         let mut cones = Vec::new();
 __CONE_PUSH_CODE__
 
-        let mut solver = DefaultSolver::new(
-            &p,
-            &canonical.c,
-            &a,
-            &canonical.b,
-            &cones,
-            settings,
-        )
-        .map_err(|error| RuntimeError::Solver(format!("failed to initialize Clarabel solver: {error}")))?;
+        let mut solver = DefaultSolver::new(&p, &canonical.c, &a, &canonical.b, &cones, settings)
+            .map_err(|error| {
+            RuntimeError::Solver(format!("failed to initialize Clarabel solver: {error}"))
+        })?;
         solver.solve();
 
         let solution = &solver.solution;

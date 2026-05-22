@@ -2,22 +2,23 @@
     ///
     /// This is useful for inspection, debugging, or calling a different solver
     /// backend. Most users should call [`CGRProblem::solve`] directly.
+    #[rustfmt::skip]
     pub fn canonical_cone_prob(&self) -> Result<CanonicalConeQp, RuntimeError> {
-        __P_REDUCED__
-        __P_PATTERN__
+__P_REDUCED__
+__P_PATTERN__
         let p_map = AffineCscMap {
             reduced: p_reduced,
             pattern: p_pattern,
         };
 
-        __A_REDUCED__
-        __A_PATTERN__
+__A_REDUCED__
+__A_PATTERN__
         let a_map = AffineOffsetCscMap {
             reduced: a_reduced,
             pattern: a_pattern,
         };
 
-        __Q_REDUCED__
+__Q_REDUCED__
         let c_map = AffineVectorMap {
             reduced: c_reduced,
             output_len: __Q_OUTPUT_LEN__usize,

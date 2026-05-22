@@ -1,16 +1,9 @@
 __RUNTIME_RS__
+__PARAMETERS_STATIC__
 
-static PARAMETERS: [ParameterInfo; __PARAMETER_COUNT__] = [
-    __PARAMETERS__
-];
+__VARIABLES_STATIC__
 
-static VARIABLES: [VariableInfo; __VARIABLE_COUNT__] = [
-    __VARIABLES__
-];
-
-static DUAL_VARIABLES: [DualVariableInfo; __DUAL_VARIABLE_COUNT__] = [
-    __DUAL_VARIABLES__
-];
+__DUAL_VARIABLES_STATIC__
 
 /// Generated solver handle for this CVXPY problem.
 ///
@@ -165,9 +158,7 @@ impl CGRProblem {
     }
 
 __CANONICAL_METHOD__
-
 __SOLVE_METHOD__
-
     /// Extracts one named primal variable block from a solution vector.
     ///
     /// Pass [`SolveResult::x`] from this generated solver. Returns
@@ -217,5 +208,4 @@ __SOLVE_METHOD__
     }
 
 __PARAM_SETTERS____VARIABLE_GETTERS____DUAL_VARIABLE_GETTERS__}
-
 __PYTHON_METHODS__

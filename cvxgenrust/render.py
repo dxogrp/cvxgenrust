@@ -87,8 +87,15 @@ def _rust_usize_slice(values: list[int] | tuple[int, ...]) -> str:
     return "&[" + ", ".join(f"{value}usize" for value in values) + "]"
 
 
-def _rust_usize_vec(values: list[int]) -> str:
-    return "vec![" + ", ".join(f"{value}usize" for value in values) + "]"
+def _rust_vec(values: list[object], render_value, indent: str) -> str:
+    if not values:
+        return "vec![]"
+    entries = "\n".join(f"{indent}    {render_value(value)}," for value in values)
+    return f"vec![\n{entries}\n{indent}]"
+
+
+def _rust_usize_vec(values: list[int], indent: str = "") -> str:
+    return _rust_vec(values, lambda value: f"{value}usize", indent)
 
 
 def _rust_f64(value: float) -> str:
@@ -101,73 +108,99 @@ def _rust_f64(value: float) -> str:
     return repr(float(value))
 
 
-def _rust_f64_vec(values: list[float]) -> str:
-    return "vec![" + ", ".join(_rust_f64(value) for value in values) + "]"
+def _rust_f64_vec(values: list[float], indent: str = "") -> str:
+    return _rust_vec(values, _rust_f64, indent)
 
 
 def _render_csr(name: str, spec: CsrMatrixSpec) -> str:
-    return f"""let {name} = CsrMatrix {{
-        rows: {spec.rows}usize,
-        cols: {spec.cols}usize,
-        indptr: {_rust_usize_vec(spec.indptr)},
-        indices: {_rust_usize_vec(spec.indices)},
-        data: {_rust_f64_vec(spec.data)},
-    }};"""
+    field_indent = "            "
+    return f"""        let {name} = CsrMatrix {{
+            rows: {spec.rows}usize,
+            cols: {spec.cols}usize,
+            indptr: {_rust_usize_vec(spec.indptr, field_indent)},
+            indices: {_rust_usize_vec(spec.indices, field_indent)},
+            data: {_rust_f64_vec(spec.data, field_indent)},
+        }};"""
 
 
 def _render_pattern(name: str, spec: MatrixPatternSpec) -> str:
-    return f"""let {name} = MatrixPattern {{
-        rows: {spec.rows}usize,
-        cols: {spec.cols}usize,
-        indices: {_rust_usize_vec(spec.indices)},
-        indptr: {_rust_usize_vec(spec.indptr)},
-    }};"""
+    field_indent = "            "
+    return f"""        let {name} = MatrixPattern {{
+            rows: {spec.rows}usize,
+            cols: {spec.cols}usize,
+            indices: {_rust_usize_vec(spec.indices, field_indent)},
+            indptr: {_rust_usize_vec(spec.indptr, field_indent)},
+        }};"""
 
 
-def _render_parameter_info(parameter: ParameterSpec) -> str:
+def _indent_rust_block(block: str, indent: str) -> str:
+    return "\n".join(f"{indent}{line}" if line else line for line in block.splitlines())
+
+
+def _render_parameter_info(parameter: ParameterSpec, field_indent: str = "    ") -> str:
     return f"""ParameterInfo {{
-        name: {_rust_string(parameter.name)},
-        shape: {_rust_usize_slice(parameter.shape)},
-        size: {parameter.size}usize,
-        offset: {parameter.offset}usize,
-    }}"""
+{field_indent}name: {_rust_string(parameter.name)},
+{field_indent}shape: {_rust_usize_slice(parameter.shape)},
+{field_indent}size: {parameter.size}usize,
+{field_indent}offset: {parameter.offset}usize,
+}}"""
 
 
-def _render_variable_info(variable: VariableSpec) -> str:
+def _render_variable_info(variable: VariableSpec, field_indent: str = "    ") -> str:
     return f"""VariableInfo {{
-        name: {_rust_string(variable.name)},
-        shape: {_rust_usize_slice(variable.shape)},
-        size: {variable.size}usize,
-        offset: {variable.offset}usize,
-    }}"""
+{field_indent}name: {_rust_string(variable.name)},
+{field_indent}shape: {_rust_usize_slice(variable.shape)},
+{field_indent}size: {variable.size}usize,
+{field_indent}offset: {variable.offset}usize,
+}}"""
 
 
-def _render_dual_variable_info(dual_variable: DualVariableSpec) -> str:
+def _render_dual_variable_info(dual_variable: DualVariableSpec, field_indent: str = "    ") -> str:
     return f"""DualVariableInfo {{
-        name: {_rust_string(dual_variable.name)},
-        shape: {_rust_usize_slice(dual_variable.shape)},
-        size: {dual_variable.size}usize,
-        offset: {dual_variable.offset}usize,
-    }}"""
+{field_indent}name: {_rust_string(dual_variable.name)},
+{field_indent}shape: {_rust_usize_slice(dual_variable.shape)},
+{field_indent}size: {dual_variable.size}usize,
+{field_indent}offset: {dual_variable.offset}usize,
+}}"""
 
 
 def _render_cone_dims(spec: ConeDimsSpec) -> str:
+    field_indent = "                "
     return f"""ConeDims {{
-            zero: {spec.zero}usize,
-            nonneg: {spec.nonneg}usize,
-            exp: {spec.exp}usize,
-            soc: {_rust_usize_vec(spec.soc)},
-            psd: {_rust_usize_vec(spec.psd)},
-            p3d: {_rust_f64_vec(spec.p3d)},
-        }}"""
+                zero: {spec.zero}usize,
+                nonneg: {spec.nonneg}usize,
+                exp: {spec.exp}usize,
+                soc: {_rust_usize_vec(spec.soc, field_indent)},
+                psd: {_rust_usize_vec(spec.psd, field_indent)},
+                p3d: {_rust_f64_vec(spec.p3d, field_indent)},
+            }}"""
+
+
+def _render_rust_static_array(name: str, item_type: str, items: list[str]) -> str:
+    if not items:
+        return f"static {name}: [{item_type}; 0] = [];"
+    if len(items) == 1:
+        return f"static {name}: [{item_type}; 1] = [{items[0]}];"
+
+    rendered_items = ",\n".join(_indent_rust_block(item, "    ") for item in items)
+    return f"static {name}: [{item_type}; {len(items)}] = [\n{rendered_items},\n];"
 
 
 def _render_generated_lib(spec: ProblemSpec, generated_at: str) -> str:
-    parameters = ",\n    ".join(_render_parameter_info(parameter) for parameter in spec.parameters)
-    variables = ",\n    ".join(_render_variable_info(variable) for variable in spec.variables)
-    dual_variables = ",\n    ".join(
-        _render_dual_variable_info(dual_variable)
-        for dual_variable in spec.dual_variables
+    parameters_static = _render_rust_static_array(
+        "PARAMETERS",
+        "ParameterInfo",
+        [_render_parameter_info(parameter) for parameter in spec.parameters]
+    )
+    variables_static = _render_rust_static_array(
+        "VARIABLES",
+        "VariableInfo",
+        [_render_variable_info(variable) for variable in spec.variables]
+    )
+    dual_variables_static = _render_rust_static_array(
+        "DUAL_VARIABLES",
+        "DualVariableInfo",
+        [_render_dual_variable_info(dual_variable) for dual_variable in spec.dual_variables]
     )
     param_setters = []
     for parameter in spec.parameters:
@@ -231,7 +264,7 @@ def _render_generated_lib(spec: ProblemSpec, generated_at: str) -> str:
         )
     if spec.cone_dims.nonneg > 0:
         cone_push_lines.append(
-            "        cones.push(SupportedConeT::<f64>::NonnegativeConeT(canonical.cones.nonneg));"
+            "        cones.push(SupportedConeT::<f64>::NonnegativeConeT(\n            canonical.cones.nonneg,\n        ));"
         )
     if spec.cone_dims.soc:
         cone_push_lines.append(
@@ -271,7 +304,7 @@ def _render_generated_lib(spec: ProblemSpec, generated_at: str) -> str:
         PARAMETER_VEC_LEN_MINUS_ONE=str(spec.parameter_vec_len - 1),
     )
 
-    return _fill_template(
+    rendered = _fill_template(
         _load_template("cgr_lib.rs.tmpl"),
         RUNTIME_RS=_fill_template(
             _load_template("runtime.rs.tmpl"),
@@ -282,12 +315,9 @@ def _render_generated_lib(spec: ProblemSpec, generated_at: str) -> str:
                 module_name=spec.module_name,
             ),
         ),
-        PARAMETER_COUNT=str(len(spec.parameters)),
-        PARAMETERS=parameters,
-        VARIABLE_COUNT=str(len(spec.variables)),
-        VARIABLES=variables,
-        DUAL_VARIABLE_COUNT=str(len(spec.dual_variables)),
-        DUAL_VARIABLES=dual_variables,
+        PARAMETERS_STATIC=parameters_static,
+        VARIABLES_STATIC=variables_static,
+        DUAL_VARIABLES_STATIC=dual_variables_static,
         PARAMETER_VEC_LEN_MINUS_ONE=str(spec.parameter_vec_len - 1),
         CANONICAL_METHOD=canonical_method,
         SOLVE_METHOD=solve_method,
@@ -296,6 +326,7 @@ def _render_generated_lib(spec: ProblemSpec, generated_at: str) -> str:
         VARIABLE_GETTERS="".join(variable_getters),
         DUAL_VARIABLE_GETTERS="".join(dual_variable_getters),
     )
+    return rendered.rstrip() + "\n"
 
 
 def _render_generated_pyproject(spec: ProblemSpec, package_name: str, generated_at: str) -> str:
