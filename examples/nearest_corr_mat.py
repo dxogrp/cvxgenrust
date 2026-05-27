@@ -80,8 +80,8 @@ def _(mo):
 def _(cgr, problem):
     project = cgr.generate_code(
         problem,
-        code_dir="generated/nearest_corr_sdp",
-        module_name="nearest_corr_sdp",
+        code_dir="generated/nearest_corr_mat",
+        module_name="nearest_cov",
     )
     return (project,)
 
@@ -96,8 +96,8 @@ def _(mo):
 
 @app.cell
 def _(problem, sys):
-    sys.path.append("generated/nearest_corr_sdp/python")
-    from nearest_corr_sdp_wrapper.cgr_solver import cgr_solve
+    sys.path.append("generated/nearest_corr_mat/python")
+    from nearest_cov_wrapper.cgr_solver import cgr_solve
 
     problem.register_solve("CGR", cgr_solve)
     return
