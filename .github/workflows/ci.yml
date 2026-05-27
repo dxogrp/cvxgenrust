@@ -17,11 +17,11 @@ jobs:
       matrix:
         include:
           - os: macos-latest
-            pytest-args: tests -m "not (sdp and numerical)"
+            pytest-args: tests -m "not (sdp and (numerical or rust_smoke))"
           - os: ubuntu-latest
-            pytest-args: tests -m "not (sdp and numerical)"
+            pytest-args: tests -m "not (sdp and (numerical or rust_smoke))"
           - os: windows-latest
-            pytest-args: tests -m "not (sdp and numerical)"
+            pytest-args: tests -m "not (sdp and (numerical or rust_smoke))"
 
     steps:
       - name: Check out repository
