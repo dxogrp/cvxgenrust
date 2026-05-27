@@ -151,7 +151,9 @@ def _render_variable_info(variable: VariableSpec, field_indent: str = "    ") ->
 {field_indent}name: {_rust_string(variable.name)},
 {field_indent}shape: {_rust_usize_slice(variable.shape)},
 {field_indent}size: {variable.size}usize,
+{field_indent}canonical_size: {variable.canonical_size}usize,
 {field_indent}offset: {variable.offset}usize,
+{field_indent}unpack: {_rust_string(variable.unpack or "identity")},
 }}"""
 
 
@@ -234,7 +236,7 @@ def _render_generated_lib(spec: ProblemSpec, generated_at: str) -> str:
             f"""{_rustdoc_block("    ", [
                 f"Extracts primal variable `{variable.name}` from `SolveResult.x`.",
                 "",
-                f"Shape: {_shape_text(variable.shape)}. Flattened size: {variable.size}. Offset: {variable.offset}.",
+                f"Shape: {_shape_text(variable.shape)}. Flattened size: {variable.size}. Canonical size: {variable.canonical_size}. Offset: {variable.offset}.",
             ])}
     pub fn extract_{ident}(&self, solution: &[f64]) -> Result<Vec<f64>, RuntimeError> {{
         self.extract_variable({_rust_string(variable.name)}, solution)

@@ -199,3 +199,22 @@ class FunctionalTests(GeneratedCodeTestCase):
                 env=self._cargo_env(),
             )
             self.assertIn("status = Solved", result.stdout)
+
+    @pytest.mark.rust_smoke
+    @pytest.mark.sdp
+    def test_generated_rust_sdp_example_extracts_symmetric_variable(self):
+        fixture = self._build_sdp_problem()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            workspace = Path(tmpdir)
+            output_dir = workspace / "trace_sdp_cgr"
+            cgr.generate_code(fixture.problem, code_dir=output_dir, module_name="trace_sdp", wrapper=False)
+            result = subprocess.run(
+                ["cargo", "run", "--example", "solve", "--manifest-path", str(output_dir / "Cargo.toml")],
+                cwd=workspace,
+                check=True,
+                capture_output=True,
+                text=True,
+                env=self._cargo_env(),
+            )
+            self.assertIn("status = Solved", result.stdout)
+            self.assertIn("x = [", result.stdout.lower())

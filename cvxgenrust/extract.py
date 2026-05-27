@@ -106,6 +106,31 @@ def _parameter_pack_kind(
     return None
 
 
+def _variable_unpack_kind(variable: cp.Variable) -> str | None:
+    shape = tuple(int(x) for x in variable.shape)
+    if len(shape) != 2 or shape[0] != shape[1]:
+        return None
+
+    attributes = getattr(variable, "attributes", {})
+    if any(attributes.get(name, False) for name in ("symmetric", "PSD", "NSD")):
+        return "symmetric"
+    return None
+
+
+def _canonical_variable_sizes(
+    inverse_data: list[Any],
+    canonical_dim: int,
+) -> dict[int, int]:
+    sizes: dict[int, int] = {}
+    for item in inverse_data:
+        item_dict = getattr(item, "__dict__", None)
+        if not item_dict or item_dict.get("x_length") != canonical_dim:
+            continue
+        id_map = item_dict.get("id_map", {})
+        sizes.update({int(var_id): int(size) for var_id, (_offset, size) in id_map.items()})
+    return sizes
+
+
 def extract_problem(
     problem: cp.Problem,
     module_name: str,
@@ -147,17 +172,21 @@ def extract_problem(
         )
 
     variables = []
+    canonical_variable_sizes = _canonical_variable_sizes(inverse_data, canonical_dim)
     for variable in problem.variables():
         if variable.id not in param_prob.var_id_to_col:
             continue
         name = variable.name() or f"var_{variable.id}"
         offset = int(param_prob.var_id_to_col[variable.id])
+        canonical_size = canonical_variable_sizes.get(variable.id, int(variable.size))
         variables.append(
             VariableSpec(
                 name=name,
                 shape=tuple(int(x) for x in variable.shape),
                 size=int(variable.size),
+                canonical_size=canonical_size,
                 offset=offset,
+                unpack=_variable_unpack_kind(variable),
             )
         )
 

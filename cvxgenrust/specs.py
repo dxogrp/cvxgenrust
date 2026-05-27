@@ -47,7 +47,9 @@ class VariableSpec:
     name: str
     shape: tuple[int, ...]
     size: int
+    canonical_size: int
     offset: int
+    unpack: str | None = None
 
 
 @dataclass

@@ -211,8 +211,12 @@ pub struct VariableInfo {
     pub shape: &'static [usize],
     /// Number of flattened scalar entries.
     pub size: usize,
+    /// Number of scalar entries stored in Clarabel's canonical solution.
+    pub canonical_size: usize,
     /// Start offset in [`SolveResult::x`].
     pub offset: usize,
+    /// Canonical-to-user unpacking rule.
+    pub unpack: &'static str,
 }
 
 /// Metadata for one canonical dual block in [`SolveResult::z`].

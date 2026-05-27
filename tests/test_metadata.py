@@ -220,3 +220,16 @@ class MetadataTests(GeneratedCodeTestCase):
 
         self.assertEqual(spec.module_name, "trace_sdp")
         self.assertEqual(spec.cone_dims.psd, [2])
+        self.assertEqual(
+            [
+                (
+                    variable.name,
+                    variable.shape,
+                    variable.size,
+                    variable.canonical_size,
+                    variable.unpack,
+                )
+                for variable in spec.variables
+            ],
+            [("X", (2, 2), 4, 3, "symmetric")],
+        )

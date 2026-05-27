@@ -170,15 +170,54 @@ __SOLVE_METHOD__
             .find(|variable| variable.name == name)
             .ok_or_else(|| RuntimeError::UnknownVariable(name.to_owned()))?;
 
-        if solution.len() < variable.offset + variable.size {
+        if solution.len() < variable.offset + variable.canonical_size {
             return Err(RuntimeError::DimensionMismatch {
-                expected: variable.offset + variable.size,
+                expected: variable.offset + variable.canonical_size,
                 actual: solution.len(),
                 name: "solution",
             });
         }
 
-        Ok(solution[variable.offset..variable.offset + variable.size].to_vec())
+        let canonical = &solution[variable.offset..variable.offset + variable.canonical_size];
+        match variable.unpack {
+            "identity" => {
+                if variable.canonical_size != variable.size {
+                    return Err(RuntimeError::MalformedMap(
+                        "identity variable metadata has mismatched canonical and user sizes",
+                    ));
+                }
+                Ok(canonical.to_vec())
+            }
+            "symmetric" => {
+                if variable.shape.len() != 2 || variable.shape[0] != variable.shape[1] {
+                    return Err(RuntimeError::MalformedMap(
+                        "symmetric variable metadata must have a square matrix shape",
+                    ));
+                }
+                let n = variable.shape[0];
+                let expected_canonical = n * (n + 1) / 2;
+                if variable.canonical_size != expected_canonical || variable.size != n * n {
+                    return Err(RuntimeError::MalformedMap(
+                        "symmetric variable metadata has inconsistent packed size",
+                    ));
+                }
+
+                let mut out = vec![0.0; variable.size];
+                let mut slot = 0usize;
+                for col in 0..n {
+                    for row in col..n {
+                        let value = canonical[slot];
+                        out[row + col * n] = value;
+                        out[col + row * n] = value;
+                        slot += 1;
+                    }
+                }
+                Ok(out)
+            }
+            _ => Err(RuntimeError::MalformedMap(
+                "unknown variable unpacking rule",
+            )),
+        }
     }
 
     /// Extracts one named canonical dual block from a dual solution vector.
