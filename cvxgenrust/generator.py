@@ -18,12 +18,14 @@ from .extract import extract_problem
 from .names import _rust_ident, _snake_case, _wrapper_package_name
 from .render import (
     _render_generated_cargo,
+    _render_generated_data,
     _render_generated_init,
     _render_generated_lib,
     _render_generated_license,
     _render_generated_pyproject,
     _render_generated_python_wrapper,
     _render_generated_readme,
+    _render_generated_runtime,
     _render_generated_rust_example,
 )
 from .specs import GeneratedRustProject, ProblemSpec
@@ -202,6 +204,12 @@ class CodeGenerator:
         )
         (src_dir / "lib.rs").write_text(
             _render_generated_lib(spec, generated_at), encoding="utf-8"
+        )
+        (src_dir / "runtime.rs").write_text(
+            _render_generated_runtime(spec, generated_at), encoding="utf-8"
+        )
+        (src_dir / "data.rs").write_text(
+            _render_generated_data(spec, generated_at), encoding="utf-8"
         )
         (output_dir / "README.html").write_text(
             _render_generated_readme(spec, self.package_name, output_dir.name, generated_at),

@@ -121,6 +121,8 @@ class MetadataTests(GeneratedCodeTestCase):
             self.assertIn("[CvxGenRust] Done. Generated solver project", progress_text)
             cargo_toml = output_dir / "Cargo.toml"
             lib_rs = output_dir / "src" / "lib.rs"
+            runtime_rs = output_dir / "src" / "runtime.rs"
+            data_rs = output_dir / "src" / "data.rs"
             readme = output_dir / "README.html"
             license_file = output_dir / "LICENSE"
             package_dir = output_dir / "python" / "nonneg_ls_wrapper"
@@ -130,6 +132,8 @@ class MetadataTests(GeneratedCodeTestCase):
             rust_example = output_dir / "examples" / "solve.rs"
             self.assertTrue(cargo_toml.exists())
             self.assertTrue(lib_rs.exists())
+            self.assertTrue(runtime_rs.exists())
+            self.assertTrue(data_rs.exists())
             self.assertTrue(readme.exists())
             self.assertTrue(license_file.exists())
             self.assertTrue(wrapper.exists())
@@ -139,7 +143,16 @@ class MetadataTests(GeneratedCodeTestCase):
             self.assertEqual(project.spec.module_name, "nonneg_ls")
             cargo_text = cargo_toml.read_text(encoding="utf-8")
             lib_text = lib_rs.read_text(encoding="utf-8")
+            runtime_text = runtime_rs.read_text(encoding="utf-8")
+            data_text = data_rs.read_text(encoding="utf-8")
             self.assertIn("pub struct CGRProblem", lib_text)
+            self.assertIn("mod runtime;", lib_text)
+            self.assertIn("mod data;", lib_text)
+            self.assertIn("pub use runtime::{", lib_text)
+            self.assertNotIn("indptr: vec![", lib_text)
+            self.assertIn("static A_REDUCED_INDPTR: &[usize]", data_text)
+            self.assertIn("pub(crate) fn a_reduced() -> CsrMatrix", data_text)
+            self.assertIn("pub(crate) fn a_pattern() -> MatrixPattern", data_text)
             self.assertIn("def cgr_solve", wrapper.read_text(encoding="utf-8"))
             self.assertIn("pyo3", cargo_text)
             self.assertIn('version = "0.1.0"', cargo_text)
@@ -166,8 +179,8 @@ class MetadataTests(GeneratedCodeTestCase):
             self.assertIn("pub fn update_a", lib_text)
             self.assertIn("pub fn extract_x", lib_text)
             self.assertIn("pub fn extract_d1", lib_text)
-            self.assertIn("pub struct SolveResult", lib_text)
-            self.assertIn("pub enum RuntimeError", lib_text)
+            self.assertIn("pub struct SolveResult", runtime_text)
+            self.assertIn("pub enum RuntimeError", runtime_text)
             self.assertIn("pub fn solve_with_settings", lib_text)
             license_text = license_file.read_text(encoding="utf-8")
             self.assertIn("Apache License", license_text)

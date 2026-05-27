@@ -112,25 +112,65 @@ def _rust_f64_vec(values: list[float], indent: str = "") -> str:
     return _rust_vec(values, _rust_f64, indent)
 
 
-def _render_csr(name: str, spec: CsrMatrixSpec) -> str:
-    field_indent = "            "
-    return f"""        let {name} = CsrMatrix {{
-            rows: {spec.rows}usize,
-            cols: {spec.cols}usize,
-            indptr: {_rust_usize_vec(spec.indptr, field_indent)},
-            indices: {_rust_usize_vec(spec.indices, field_indent)},
-            data: {_rust_f64_vec(spec.data, field_indent)},
-        }};"""
+def _rust_static_slice(
+    name: str,
+    item_type: str,
+    values: list[object],
+    render_value,
+    chunk_size: int = 12,
+) -> str:
+    if not values:
+        return f"#[rustfmt::skip]\nstatic {name}: &[{item_type}] = &[];"
+
+    chunks = []
+    for start in range(0, len(values), chunk_size):
+        chunk = values[start:start + chunk_size]
+        chunks.append("    " + ", ".join(render_value(value) for value in chunk) + ",")
+    return f"#[rustfmt::skip]\nstatic {name}: &[{item_type}] = &[\n" + "\n".join(chunks) + "\n];"
 
 
-def _render_pattern(name: str, spec: MatrixPatternSpec) -> str:
-    field_indent = "            "
-    return f"""        let {name} = MatrixPattern {{
-            rows: {spec.rows}usize,
-            cols: {spec.cols}usize,
-            indices: {_rust_usize_vec(spec.indices, field_indent)},
-            indptr: {_rust_usize_vec(spec.indptr, field_indent)},
-        }};"""
+def _rust_static_usize_slice(name: str, values: list[int]) -> str:
+    return _rust_static_slice(name, "usize", values, lambda value: f"{value}usize")
+
+
+def _rust_static_f64_slice(name: str, values: list[float]) -> str:
+    return _rust_static_slice(name, "f64", values, _rust_f64, chunk_size=8)
+
+
+def _render_data_csr(function_name: str, const_prefix: str, spec: CsrMatrixSpec) -> str:
+    return "\n\n".join(
+        [
+            _rust_static_usize_slice(f"{const_prefix}_INDPTR", spec.indptr),
+            _rust_static_usize_slice(f"{const_prefix}_INDICES", spec.indices),
+            _rust_static_f64_slice(f"{const_prefix}_DATA", spec.data),
+            f"""pub(crate) fn {function_name}() -> CsrMatrix {{
+    CsrMatrix {{
+        rows: {spec.rows}usize,
+        cols: {spec.cols}usize,
+        indptr: {const_prefix}_INDPTR.to_vec(),
+        indices: {const_prefix}_INDICES.to_vec(),
+        data: {const_prefix}_DATA.to_vec(),
+    }}
+}}""",
+        ]
+    )
+
+
+def _render_data_pattern(function_name: str, const_prefix: str, spec: MatrixPatternSpec) -> str:
+    return "\n\n".join(
+        [
+            _rust_static_usize_slice(f"{const_prefix}_INDICES", spec.indices),
+            _rust_static_usize_slice(f"{const_prefix}_INDPTR", spec.indptr),
+            f"""pub(crate) fn {function_name}() -> MatrixPattern {{
+    MatrixPattern {{
+        rows: {spec.rows}usize,
+        cols: {spec.cols}usize,
+        indices: {const_prefix}_INDICES.to_vec(),
+        indptr: {const_prefix}_INDPTR.to_vec(),
+    }}
+}}""",
+        ]
+    )
 
 
 def _indent_rust_block(block: str, indent: str) -> str:
@@ -186,6 +226,42 @@ def _render_rust_static_array(name: str, item_type: str, items: list[str]) -> st
 
     rendered_items = ",\n".join(_indent_rust_block(item, "    ") for item in items)
     return f"static {name}: [{item_type}; {len(items)}] = [\n{rendered_items},\n];"
+
+
+def _render_generated_runtime(spec: ProblemSpec, generated_at: str) -> str:
+    return _fill_template(
+        _load_template("runtime.rs.tmpl"),
+        HEADER=_generated_header(
+            "//",
+            "Rust solver runtime types and canonicalization helpers",
+            generated_at,
+            module_name=spec.module_name,
+        ),
+    ).rstrip() + "\n"
+
+
+def _render_generated_data(spec: ProblemSpec, generated_at: str) -> str:
+    sections = [
+        _generated_header(
+            "//",
+            "Rust static canonicalization data",
+            generated_at,
+            module_name=spec.module_name,
+        ),
+        "",
+        "use crate::{CsrMatrix, MatrixPattern};",
+        "",
+        _render_data_csr("p_reduced", "P_REDUCED", spec.p_map.reduced),
+        "",
+        _render_data_pattern("p_pattern", "P_PATTERN", spec.p_map.pattern),
+        "",
+        _render_data_csr("a_reduced", "A_REDUCED", spec.a_map.reduced),
+        "",
+        _render_data_pattern("a_pattern", "A_PATTERN", spec.a_map.pattern),
+        "",
+        _render_data_csr("c_reduced", "C_REDUCED", spec.q_map.reduced),
+    ]
+    return "\n".join(sections).rstrip() + "\n"
 
 
 def _render_generated_lib(spec: ProblemSpec, generated_at: str) -> str:
@@ -287,11 +363,6 @@ def _render_generated_lib(spec: ProblemSpec, generated_at: str) -> str:
     cone_push_code = "\n".join(cone_push_lines)
     canonical_method = _fill_template(
         _load_template("clarabel_canonical_method.rs.tmpl"),
-        P_REDUCED=_render_csr("p_reduced", spec.p_map.reduced),
-        P_PATTERN=_render_pattern("p_pattern", spec.p_map.pattern),
-        A_REDUCED=_render_csr("a_reduced", spec.a_map.reduced),
-        A_PATTERN=_render_pattern("a_pattern", spec.a_map.pattern),
-        Q_REDUCED=_render_csr("c_reduced", spec.q_map.reduced),
         Q_OUTPUT_LEN=str(spec.q_map.output_len),
         CONE_DIMS=_render_cone_dims(spec.cone_dims),
     )
@@ -308,14 +379,11 @@ def _render_generated_lib(spec: ProblemSpec, generated_at: str) -> str:
 
     rendered = _fill_template(
         _load_template("cgr_lib.rs.tmpl"),
-        RUNTIME_RS=_fill_template(
-            _load_template("runtime.rs.tmpl"),
-            HEADER=_generated_header(
-                "//",
-                "Rust solver backend with canonicalization maps, Clarabel integration, and Python bindings",
-                generated_at,
-                module_name=spec.module_name,
-            ),
+        HEADER=_generated_header(
+            "//",
+            "Rust solver public API and bindings",
+            generated_at,
+            module_name=spec.module_name,
         ),
         PARAMETERS_STATIC=parameters_static,
         VARIABLES_STATIC=variables_static,
