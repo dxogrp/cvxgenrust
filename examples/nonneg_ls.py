@@ -21,8 +21,7 @@ def _():
 
     import sys
     import time
-    from pathlib import Path
-    ROOT = Path(__file__).resolve().parent if "__file__" in globals() else Path.cwd()
+
     return cgr, cp, mo, np, sys, time
 
 
@@ -45,7 +44,7 @@ def _(mo):
 
 @app.cell
 def _(cp, np):
-    m, n = 12, 4
+    m, n = 120, 20
     x = cp.Variable(n, name="x")
     A = cp.Parameter((m, n), name="A")
     b = cp.Parameter(m, name="b")
