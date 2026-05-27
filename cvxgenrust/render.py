@@ -372,10 +372,10 @@ def _render_generated_license(spec: ProblemSpec, generated_at: str) -> str:
 def _render_generated_cargo(spec: ProblemSpec, generated_at: str) -> str:
     if spec.cone_dims.psd:
         dependencies = """[target.'cfg(target_os = "macos")'.dependencies]
-clarabel = { version = "__CLARABEL_VERSION__", features = ["sdp-accelerate"] }
+clarabel = { version = "__CLARABEL_VERSION__", features = ["sdp-accelerate", "faer-sparse"] }
 
 [target.'cfg(not(target_os = "macos"))'.dependencies]
-clarabel = { version = "__CLARABEL_VERSION__", features = ["sdp-openblas"] }"""
+clarabel = { version = "__CLARABEL_VERSION__", features = ["sdp-openblas", "faer-sparse"] }"""
     else:
         dependencies = 'clarabel = "__CLARABEL_VERSION__"'
     return _fill_template(

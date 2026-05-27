@@ -183,8 +183,8 @@ class MetadataTests(GeneratedCodeTestCase):
             cgr.generate_code(problem, code_dir=output_dir, module_name="trace_sdp", wrapper=False)
             cargo_text = (output_dir / "Cargo.toml").read_text(encoding="utf-8")
 
-            self.assertIn('features = ["sdp-accelerate"]', cargo_text)
-            self.assertIn('features = ["sdp-openblas"]', cargo_text)
+            self.assertIn('features = ["sdp-accelerate", "faer-sparse"]', cargo_text)
+            self.assertIn('features = ["sdp-openblas", "faer-sparse"]', cargo_text)
 
     def test_extract_socp_problem_metadata(self):
         x = cp.Variable(3, name="x")
