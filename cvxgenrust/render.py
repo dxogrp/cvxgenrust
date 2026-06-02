@@ -79,11 +79,6 @@ _CLARABEL_CHORDAL_BOOL_SETTINGS = [
 _CLARABEL_CHORDAL_STRING_SETTINGS = [
     "chordal_decomposition_merge_method",
 ]
-_CLARABEL_PARDISO_SETTINGS = [
-    "pardiso_iparm",
-    "pardiso_verbose",
-]
-
 
 def _toml_string(value: str) -> str:
     return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
@@ -142,14 +137,6 @@ def _supported_clarabel_settings(spec: ProblemSpec) -> list[str]:
     return settings
 
 
-def _unsupported_clarabel_settings(spec: ProblemSpec) -> list[str]:
-    settings = list(_CLARABEL_PARDISO_SETTINGS)
-    if not spec.cone_dims.psd:
-        settings.extend(_CLARABEL_CHORDAL_BOOL_SETTINGS)
-        settings.extend(_CLARABEL_CHORDAL_STRING_SETTINGS)
-    return settings
-
-
 def _render_python_settings_match_arms(spec: ProblemSpec) -> str:
     return "\n".join(f'                "{name}" => {{}}' for name in _supported_clarabel_settings(spec))
 
@@ -170,10 +157,6 @@ def _render_python_settings_apply_code(spec: ProblemSpec) -> str:
     for name in string_settings:
         lines.append(f"        apply_setting!({name}, String);")
     return "\n".join(lines)
-
-
-def _python_string_set(values: list[str]) -> str:
-    return "\n    ".join(f"{value!r}," for value in sorted(values))
 
 
 def _rustdoc_text(value: str) -> str:
@@ -778,8 +761,6 @@ def _render_generated_python_wrapper(spec: ProblemSpec, generated_at: str) -> st
         PARAMETER_VEC_LEN=str(spec.parameter_vec_len),
         LIB_NAME=spec.module_name.replace("-", "_"),
         SOLVER_METHOD_NAME=f"{spec.module_name}_cgr",
-        SUPPORTED_SOLVER_SETTINGS=_python_string_set(_supported_clarabel_settings(spec)),
-        UNSUPPORTED_SOLVER_SETTINGS=_python_string_set(_unsupported_clarabel_settings(spec)),
     )
 
 

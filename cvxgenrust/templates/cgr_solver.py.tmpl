@@ -15,14 +15,6 @@ PARAMETERS = [
     __PARAMETER_ENTRIES__
 ]
 
-SUPPORTED_SOLVER_SETTINGS = {
-    __SUPPORTED_SOLVER_SETTINGS__
-}
-
-UNSUPPORTED_SOLVER_SETTINGS = {
-    __UNSUPPORTED_SOLVER_SETTINGS__
-}
-
 class GeneratedRustClarabel(CLARABEL):
     def name(self):
         return "__SOLVER_METHOD_NAME__"
@@ -101,8 +93,17 @@ def _get_cached_reduction(problem, solver_opts):
     return chain, inverse_data
 
 
-def _clarabel_settings_dict(settings) -> dict[str, object]:
-    return {name: getattr(settings, name) for name in SUPPORTED_SOLVER_SETTINGS}
+def _clarabel_settings_dict(settings, requested_names) -> dict[str, object]:
+    requested_names = set(requested_names)
+    requested_names.add("verbose")
+    return {
+        name: getattr(settings, name)
+        for name in dir(settings)
+        if name in requested_names
+        and not name.startswith("_")
+        and name != "default"
+        and not callable(getattr(settings, name))
+    }
 
 
 def cgr_solve(problem, updated_params=None, **kwargs):
@@ -115,22 +116,10 @@ def cgr_solve(problem, updated_params=None, **kwargs):
             stacklevel=2,
         )
 
-    unsupported = sorted(set(kwargs) & UNSUPPORTED_SOLVER_SETTINGS)
-    if unsupported:
-        raise TypeError(
-            "Clarabel settings unsupported by this generated Rust solver: "
-            + ", ".join(unsupported)
-        )
-
-    if kwargs.get("direct_solve_method") in {"mkl", "panua"}:
-        raise TypeError(
-            "Clarabel PARDISO direct solve methods are disabled in this generated Rust solver"
-        )
-
     clarabel_settings = solver.parse_solver_opts(verbose, dict(kwargs))
     chain, inverse_data = _get_cached_reduction(problem, kwargs)
     parameter_vector = _sync_parameters(problem, updated_params=updated_params)
-    rust_result = cgr_module.solve(parameter_vector, _clarabel_settings_dict(clarabel_settings))
+    rust_result = cgr_module.solve(parameter_vector, _clarabel_settings_dict(clarabel_settings, kwargs))
     if verbose:
         print(f"generated Rust solver status: {rust_result.status}")
 

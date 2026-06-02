@@ -145,7 +145,7 @@ class FunctionalTests(GeneratedCodeTestCase):
                         "for kwargs in ({'not_a_setting': 1}, {'pardiso_verbose': True}):",
                         "    try:",
                         "        problem.solve(method='CGR', updated_params=['A', 'b'], **kwargs)",
-                        "    except TypeError as error:",
+                        "    except (TypeError, RuntimeError) as error:",
                         "        print(type(error).__name__, error)",
                         "    else:",
                         "        raise AssertionError(f'expected TypeError for {kwargs}')",
@@ -162,7 +162,7 @@ class FunctionalTests(GeneratedCodeTestCase):
                 env=self._cargo_env(),
             )
             self.assertIn("unrecognized solver setting 'not_a_setting'", result.stdout)
-            self.assertIn("unsupported by this generated Rust solver: pardiso_verbose", result.stdout)
+            self.assertIn("unsupported Clarabel setting `pardiso_verbose`", result.stdout)
 
 
     @pytest.mark.python_wrapper

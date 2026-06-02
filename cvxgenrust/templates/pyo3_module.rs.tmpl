@@ -58,11 +58,6 @@ mod python {
             let key = key.extract::<String>()?;
             match key.as_str() {
 __PYTHON_SETTINGS_MATCH_ARMS__
-                "pardiso_iparm" | "pardiso_verbose" => {
-                    return Err(PyRuntimeError::new_err(format!(
-                        "Clarabel setting `{key}` requires PARDISO support, which is disabled in this generated solver"
-                    )));
-                }
                 _ => {
                     return Err(PyRuntimeError::new_err(format!(
                         "unsupported Clarabel setting `{key}` for this generated solver"
