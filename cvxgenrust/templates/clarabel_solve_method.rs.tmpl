@@ -1,9 +1,11 @@
-    /// Solves the current problem with Clarabel's default settings.
+    /// Solves the current problem with quiet Clarabel default settings.
     ///
     /// The returned [`SolveResult`] contains canonical primal, dual, and slack
     /// vectors. Use generated extractor methods to unpack named variables.
     pub fn solve(&self) -> Result<SolveResult, RuntimeError> {
-        self.solve_with_settings(ClarabelSettings::<f64>::default())
+        let mut settings = ClarabelSettings::<f64>::default();
+        settings.verbose = false;
+        self.solve_with_settings(settings)
     }
 
     /// Solves the current problem with the provided Clarabel settings.

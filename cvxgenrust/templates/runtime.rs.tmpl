@@ -50,7 +50,7 @@ impl CsrMatrix {
 /// Sparse matrix in compressed sparse column (CSC) format.
 ///
 /// Clarabel consumes canonical quadratic programs in CSC form. The generated
-/// solver returns these matrices from [`CGRProblem::canonical_cone_prob`].
+/// solver returns these matrices from `CGRProblem::canonical_cone_prob`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CscMatrix {
     /// Number of matrix rows.
@@ -198,7 +198,7 @@ pub struct ParameterInfo {
     pub shape: &'static [usize],
     /// Number of flattened scalar entries.
     pub size: usize,
-    /// Start offset in [`CGRProblem::parameter_vector`] before the trailing constant slot.
+    /// Start offset in `CGRProblem::parameter_vector` before the trailing constant slot.
     pub offset: usize,
 }
 

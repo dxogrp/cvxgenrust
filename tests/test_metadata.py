@@ -173,6 +173,7 @@ class MetadataTests(GeneratedCodeTestCase):
             self.assertNotIn("from .cgr_solver", package_init.read_text(encoding="utf-8"))
             self.assertIn("pub fn solve(&self)", lib_text)
             self.assertIn("pub use clarabel::solver::DefaultSettings as ClarabelSettings;", lib_text)
+            self.assertIn("settings.verbose = false;", lib_text)
             self.assertNotIn("solver_settings:", lib_text)
             self.assertNotIn("pub fn solver_settings", lib_text)
             self.assertNotIn("pub fn set_solver_", lib_text)
