@@ -3,6 +3,7 @@ __HEADER__
 mod data;
 mod runtime;
 
+pub use clarabel::solver::DefaultSettings as ClarabelSettings;
 pub use runtime::{
     AffineCscMap, AffineOffsetCscMap, AffineVectorMap, CanonicalConeQp, ConeDims, CscMatrix,
     CsrMatrix, DualVariableInfo, MatrixPattern, ParameterInfo, RuntimeError, SolveResult,
@@ -17,12 +18,12 @@ __DUAL_VARIABLES_STATIC__
 
 /// Generated solver handle for this CVXPY problem.
 ///
-/// A `CGRProblem` owns the current flattened parameter values and Clarabel
-/// settings. Parameters start at zero, and the default Clarabel settings are
-/// used with verbose output disabled.
+/// A `CGRProblem` owns the current flattened parameter values. Parameters start
+/// at zero. Configure Clarabel by passing native
+/// [`ClarabelSettings`] values to
+/// [`CGRProblem::solve_with_settings`].
 pub struct CGRProblem {
     parameter_values: Vec<f64>,
-    solver_settings: clarabel::solver::DefaultSettings<f64>,
 }
 
 impl Default for CGRProblem {
@@ -32,13 +33,10 @@ impl Default for CGRProblem {
 }
 
 impl CGRProblem {
-    /// Creates a new problem with zero-filled parameters and quiet Clarabel settings.
+    /// Creates a new problem with zero-filled parameters.
     pub fn new() -> Self {
-        let mut solver_settings = clarabel::solver::DefaultSettings::<f64>::default();
-        solver_settings.verbose = false;
         Self {
             parameter_values: vec![0.0; __PARAMETER_VEC_LEN_MINUS_ONE__usize],
-            solver_settings,
         }
     }
 
@@ -65,52 +63,6 @@ impl CGRProblem {
         let mut out = self.parameter_values.clone();
         out.push(1.0);
         out
-    }
-
-    /// Returns the Clarabel settings currently stored on this problem.
-    pub fn solver_settings(&self) -> &clarabel::solver::DefaultSettings<f64> {
-        &self.solver_settings
-    }
-
-    /// Returns mutable access to the Clarabel settings currently stored on this problem.
-    pub fn solver_settings_mut(&mut self) -> &mut clarabel::solver::DefaultSettings<f64> {
-        &mut self.solver_settings
-    }
-
-    /// Resets Clarabel settings to defaults and disables verbose output.
-    pub fn set_solver_default_settings(&mut self) {
-        self.solver_settings = clarabel::solver::DefaultSettings::<f64>::default();
-        self.solver_settings.verbose = false;
-    }
-
-    /// Sets Clarabel verbose logging.
-    pub fn set_solver_verbose(&mut self, verbose: bool) {
-        self.solver_settings.verbose = verbose;
-    }
-
-    /// Sets Clarabel's maximum iteration count.
-    pub fn set_solver_max_iter(&mut self, max_iter: u32) {
-        self.solver_settings.max_iter = max_iter;
-    }
-
-    /// Sets Clarabel's time limit in seconds.
-    pub fn set_solver_time_limit(&mut self, time_limit: f64) {
-        self.solver_settings.time_limit = time_limit;
-    }
-
-    /// Sets Clarabel's absolute duality-gap tolerance.
-    pub fn set_solver_tol_gap_abs(&mut self, tol_gap_abs: f64) {
-        self.solver_settings.tol_gap_abs = tol_gap_abs;
-    }
-
-    /// Sets Clarabel's relative duality-gap tolerance.
-    pub fn set_solver_tol_gap_rel(&mut self, tol_gap_rel: f64) {
-        self.solver_settings.tol_gap_rel = tol_gap_rel;
-    }
-
-    /// Sets Clarabel's feasibility tolerance.
-    pub fn set_solver_tol_feas(&mut self, tol_feas: f64) {
-        self.solver_settings.tol_feas = tol_feas;
     }
 
     /// Replaces one named parameter block.

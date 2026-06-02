@@ -33,13 +33,6 @@ from .specs import GeneratedRustProject, ProblemSpec
 _RESERVED_PARAMETER_METHOD_IDENTS = {
     "parameter",
     "parameter_entry",
-    "solver_default_settings",
-    "solver_verbose",
-    "solver_max_iter",
-    "solver_time_limit",
-    "solver_tol_gap_abs",
-    "solver_tol_gap_rel",
-    "solver_tol_feas",
 }
 _RESERVED_EXTRACTOR_METHOD_IDENTS = {"variable", "dual_variable"}
 

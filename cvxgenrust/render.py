@@ -24,6 +24,66 @@ from .specs import (
     VariableSpec,
 )
 
+_CLARABEL_BOOL_SETTINGS = [
+    "verbose",
+    "equilibrate_enable",
+    "direct_kkt_solver",
+    "static_regularization_enable",
+    "dynamic_regularization_enable",
+    "iterative_refinement_enable",
+    "presolve_enable",
+    "input_sparse_dropzeros",
+]
+_CLARABEL_U32_SETTINGS = [
+    "max_iter",
+    "equilibrate_max_iter",
+    "max_threads",
+    "iterative_refinement_max_iter",
+]
+_CLARABEL_F64_SETTINGS = [
+    "time_limit",
+    "max_step_fraction",
+    "tol_gap_abs",
+    "tol_gap_rel",
+    "tol_feas",
+    "tol_infeas_abs",
+    "tol_infeas_rel",
+    "tol_ktratio",
+    "reduced_tol_gap_abs",
+    "reduced_tol_gap_rel",
+    "reduced_tol_feas",
+    "reduced_tol_infeas_abs",
+    "reduced_tol_infeas_rel",
+    "reduced_tol_ktratio",
+    "equilibrate_min_scaling",
+    "equilibrate_max_scaling",
+    "linesearch_backtrack_step",
+    "min_switch_step_length",
+    "min_terminate_step_length",
+    "static_regularization_constant",
+    "static_regularization_proportional",
+    "dynamic_regularization_eps",
+    "dynamic_regularization_delta",
+    "iterative_refinement_reltol",
+    "iterative_refinement_abstol",
+    "iterative_refinement_stop_ratio",
+]
+_CLARABEL_STRING_SETTINGS = [
+    "direct_solve_method",
+]
+_CLARABEL_CHORDAL_BOOL_SETTINGS = [
+    "chordal_decomposition_enable",
+    "chordal_decomposition_compact",
+    "chordal_decomposition_complete_dual",
+]
+_CLARABEL_CHORDAL_STRING_SETTINGS = [
+    "chordal_decomposition_merge_method",
+]
+_CLARABEL_PARDISO_SETTINGS = [
+    "pardiso_iparm",
+    "pardiso_verbose",
+]
+
 
 def _toml_string(value: str) -> str:
     return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
@@ -67,6 +127,53 @@ def _generated_header(prefix: str, artifact: str, generated_at: str, module_name
 
 def _rust_string(value: str) -> str:
     return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def _supported_clarabel_settings(spec: ProblemSpec) -> list[str]:
+    settings = [
+        *_CLARABEL_BOOL_SETTINGS,
+        *_CLARABEL_U32_SETTINGS,
+        *_CLARABEL_F64_SETTINGS,
+        *_CLARABEL_STRING_SETTINGS,
+    ]
+    if spec.cone_dims.psd:
+        settings.extend(_CLARABEL_CHORDAL_BOOL_SETTINGS)
+        settings.extend(_CLARABEL_CHORDAL_STRING_SETTINGS)
+    return settings
+
+
+def _unsupported_clarabel_settings(spec: ProblemSpec) -> list[str]:
+    settings = list(_CLARABEL_PARDISO_SETTINGS)
+    if not spec.cone_dims.psd:
+        settings.extend(_CLARABEL_CHORDAL_BOOL_SETTINGS)
+        settings.extend(_CLARABEL_CHORDAL_STRING_SETTINGS)
+    return settings
+
+
+def _render_python_settings_match_arms(spec: ProblemSpec) -> str:
+    return "\n".join(f'                "{name}" => {{}}' for name in _supported_clarabel_settings(spec))
+
+
+def _render_python_settings_apply_code(spec: ProblemSpec) -> str:
+    lines = []
+    bool_settings = list(_CLARABEL_BOOL_SETTINGS)
+    string_settings = list(_CLARABEL_STRING_SETTINGS)
+    if spec.cone_dims.psd:
+        bool_settings.extend(_CLARABEL_CHORDAL_BOOL_SETTINGS)
+        string_settings.extend(_CLARABEL_CHORDAL_STRING_SETTINGS)
+    for name in bool_settings:
+        lines.append(f"        apply_setting!({name}, bool);")
+    for name in _CLARABEL_U32_SETTINGS:
+        lines.append(f"        apply_setting!({name}, u32);")
+    for name in _CLARABEL_F64_SETTINGS:
+        lines.append(f"        apply_setting!({name}, f64);")
+    for name in string_settings:
+        lines.append(f"        apply_setting!({name}, String);")
+    return "\n".join(lines)
+
+
+def _python_string_set(values: list[str]) -> str:
+    return "\n    ".join(f"{value!r}," for value in sorted(values))
 
 
 def _rustdoc_text(value: str) -> str:
@@ -375,6 +482,8 @@ def _render_generated_lib(spec: ProblemSpec, generated_at: str) -> str:
         LIB_NAME=spec.module_name.replace("-", "_"),
         PARAMETER_VEC_LEN=str(spec.parameter_vec_len),
         PARAMETER_VEC_LEN_MINUS_ONE=str(spec.parameter_vec_len - 1),
+        PYTHON_SETTINGS_MATCH_ARMS=_render_python_settings_match_arms(spec),
+        PYTHON_SETTINGS_APPLY_CODE=_render_python_settings_apply_code(spec),
     )
 
     rendered = _fill_template(
@@ -573,10 +682,12 @@ print(problem.status)
         for dual_variable in spec.dual_variables
     ) or "    // No generated dual block extractors."
     rust_api_snippet = _fill_template(
-        """pub struct CGRProblem { ... }
+        """pub use clarabel::solver::DefaultSettings as ClarabelSettings;
+
+pub struct CGRProblem { ... }
 
 impl CGRProblem {
-    // Construct a problem object with zero-filled parameters and quiet Clarabel settings.
+    // Construct a problem object with zero-filled parameters.
     pub fn new() -> Self;
 
     // Static metadata for generated parameter, primal variable, and canonical dual layouts.
@@ -587,17 +698,6 @@ impl CGRProblem {
     // Flattened parameter vector in CVXPY canonical order, including the trailing constant slot.
     pub fn parameter_vector(&self) -> Vec<f64>;
 
-    // Clarabel settings accessors and common convenience setters.
-    pub fn solver_settings(&self) -> &clarabel::solver::DefaultSettings<f64>;
-    pub fn solver_settings_mut(&mut self) -> &mut clarabel::solver::DefaultSettings<f64>;
-    pub fn set_solver_default_settings(&mut self);
-    pub fn set_solver_verbose(&mut self, verbose: bool);
-    pub fn set_solver_max_iter(&mut self, max_iter: u32);
-    pub fn set_solver_time_limit(&mut self, time_limit: f64);
-    pub fn set_solver_tol_gap_abs(&mut self, tol_gap_abs: f64);
-    pub fn set_solver_tol_gap_rel(&mut self, tol_gap_rel: f64);
-    pub fn set_solver_tol_feas(&mut self, tol_feas: f64);
-
     // Generic and generated parameter setters. Entry updates use zero-based flattened indices.
     pub fn set_parameter(&mut self, name: &str, value: &[f64]) -> Result<(), RuntimeError>;
     pub fn update_parameter_entry(&mut self, name: &str, index: usize, value: f64) -> Result<(), RuntimeError>;
@@ -606,6 +706,10 @@ __GENERATED_SETTERS__
     // Build the current canonical cone program data, or solve it with Clarabel.
     pub fn canonical_cone_prob(&self) -> Result<CanonicalConeQp, RuntimeError>;
     pub fn solve(&self) -> Result<SolveResult, RuntimeError>;
+    pub fn solve_with_settings(
+        &self,
+        settings: ClarabelSettings<f64>,
+    ) -> Result<SolveResult, RuntimeError>;
 
     // Extract primal variables from SolveResult.x.
     pub fn extract_variable(&self, name: &str, solution: &[f64]) -> Result<Vec<f64>, RuntimeError>;
@@ -674,6 +778,8 @@ def _render_generated_python_wrapper(spec: ProblemSpec, generated_at: str) -> st
         PARAMETER_VEC_LEN=str(spec.parameter_vec_len),
         LIB_NAME=spec.module_name.replace("-", "_"),
         SOLVER_METHOD_NAME=f"{spec.module_name}_cgr",
+        SUPPORTED_SOLVER_SETTINGS=_python_string_set(_supported_clarabel_settings(spec)),
+        UNSUPPORTED_SOLVER_SETTINGS=_python_string_set(_unsupported_clarabel_settings(spec)),
     )
 
 

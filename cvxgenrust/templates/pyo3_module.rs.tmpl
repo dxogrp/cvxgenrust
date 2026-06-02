@@ -3,6 +3,7 @@ mod python {
     use super::*;
     use pyo3::exceptions::PyRuntimeError;
     use pyo3::prelude::*;
+    use pyo3::types::PyDict;
 
     #[pyclass]
     pub struct PySolveResult {
@@ -45,8 +46,49 @@ mod python {
         }
     }
 
+    fn clarabel_settings_from_py(
+        settings: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<clarabel::solver::DefaultSettings<f64>> {
+        let mut clarabel_settings = clarabel::solver::DefaultSettings::<f64>::default();
+        let Some(settings) = settings else {
+            return Ok(clarabel_settings);
+        };
+
+        for key in settings.keys() {
+            let key = key.extract::<String>()?;
+            match key.as_str() {
+__PYTHON_SETTINGS_MATCH_ARMS__
+                "pardiso_iparm" | "pardiso_verbose" => {
+                    return Err(PyRuntimeError::new_err(format!(
+                        "Clarabel setting `{key}` requires PARDISO support, which is disabled in this generated solver"
+                    )));
+                }
+                _ => {
+                    return Err(PyRuntimeError::new_err(format!(
+                        "unsupported Clarabel setting `{key}` for this generated solver"
+                    )));
+                }
+            }
+        }
+
+        macro_rules! apply_setting {
+            ($field:ident, $ty:ty) => {
+                if let Some(value) = settings.get_item(stringify!($field))? {
+                    clarabel_settings.$field = value.extract::<$ty>()?;
+                }
+            };
+        }
+
+__PYTHON_SETTINGS_APPLY_CODE__
+
+        Ok(clarabel_settings)
+    }
+
     #[pyfunction]
-    pub fn solve(parameter_vector: Vec<f64>) -> PyResult<PySolveResult> {
+    pub fn solve(
+        parameter_vector: Vec<f64>,
+        settings: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<PySolveResult> {
         if parameter_vector.len() != __PARAMETER_VEC_LEN__ {
             return Err(PyRuntimeError::new_err(format!(
                 "parameter vector length mismatch: expected {}, got {}",
@@ -60,8 +102,9 @@ mod python {
             .parameter_values
             .copy_from_slice(&parameter_vector[..__PARAMETER_VEC_LEN_MINUS_ONE__]);
 
+        let settings = clarabel_settings_from_py(settings)?;
         problem
-            .solve()
+            .solve_with_settings(settings)
             .map(PySolveResult::from)
             .map_err(|error| PyRuntimeError::new_err(error.to_string()))
     }

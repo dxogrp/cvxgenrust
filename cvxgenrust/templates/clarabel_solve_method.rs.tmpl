@@ -1,19 +1,15 @@
-    /// Solves the current problem with the stored Clarabel settings.
+    /// Solves the current problem with Clarabel's default settings.
     ///
     /// The returned [`SolveResult`] contains canonical primal, dual, and slack
     /// vectors. Use generated extractor methods to unpack named variables.
     pub fn solve(&self) -> Result<SolveResult, RuntimeError> {
-        self.solve_with_settings(self.solver_settings.clone())
+        self.solve_with_settings(ClarabelSettings::<f64>::default())
     }
 
     /// Solves the current problem with the provided Clarabel settings.
-    ///
-    /// This does not mutate the settings stored on the problem. Use
-    /// [`CGRProblem::solver_settings_mut`] or the convenience setters to update
-    /// stored settings for future [`CGRProblem::solve`] calls.
     pub fn solve_with_settings(
         &self,
-        settings: clarabel::solver::DefaultSettings<f64>,
+        settings: ClarabelSettings<f64>,
     ) -> Result<SolveResult, RuntimeError> {
         use clarabel::algebra::CscMatrix as ClarabelCscMatrix;
         use clarabel::solver::{DefaultSolver, IPSolver, SupportedConeT};

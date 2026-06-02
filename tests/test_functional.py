@@ -49,16 +49,17 @@ class FunctionalTests(GeneratedCodeTestCase):
         (project_dir / "src" / "main.rs").write_text(
             "\n".join(
                 [
-                    "use nonneg_ls::CGRProblem;",
+                    "use nonneg_ls::{CGRProblem, ClarabelSettings};",
                     "",
                     "fn main() -> Result<(), Box<dyn std::error::Error>> {",
                     "    let mut problem = CGRProblem::new();",
-                    "    problem.set_solver_max_iter(100);",
-                    "    problem.set_solver_tol_feas(1e-7);",
+                    "    let mut settings = ClarabelSettings::<f64>::default();",
+                    "    settings.max_iter = 100;",
+                    "    settings.tol_feas = 1e-7;",
                     '    problem.set_a(&[1.0, 0.0, 0.0, 2.0, 3.0, 0.0])?;',
                     '    problem.set_b(&[1.0, 2.0, 3.0])?;',
                     "    problem.update_b(2, 3.0)?;",
-                    "    let solution = problem.solve()?;",
+                    "    let solution = problem.solve_with_settings(settings)?;",
                     '    let x = problem.extract_variable("x", &solution.x)?;',
                     '    let d1 = problem.extract_d1(&solution.z)?;',
                     '    println!("status = {}", solution.status);',
@@ -97,7 +98,7 @@ class FunctionalTests(GeneratedCodeTestCase):
                         'problem.register_solve("CGR", cgr_solve)',
                         "A.value = np.array([[1.0, 2.0], [0.0, 3.0], [0.0, 0.0]])",
                         "b.value = np.array([1.0, 2.0, 3.0])",
-                        'value = problem.solve(method="CGR", updated_params=["A", "b"])',
+                        'value = problem.solve(method="CGR", updated_params=["A", "b"], max_iter=100, tol_feas=1e-7, verbose=False)',
                         'print("status =", problem.status)',
                         'print("value =", value)',
                         'print("x =", x.value)',
@@ -116,6 +117,52 @@ class FunctionalTests(GeneratedCodeTestCase):
             self.assertIn("status = optimal", result.stdout)
             self.assertIn("value =", result.stdout)
             self.assertIn("x =", result.stdout)
+
+    @pytest.mark.python_wrapper
+    def test_python_wrapper_rejects_invalid_and_pardiso_settings(self):
+        fixture = self._build_nonneg_ls_problem()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            workspace = Path(tmpdir)
+            self._write_nonneg_ls_problem_module(workspace / "nonneg_ls.py")
+            output_dir = workspace / "nonneg_ls_cgr"
+            project = cgr.generate_code(fixture.problem, code_dir=output_dir, module_name="nonneg_ls")
+            (workspace / "run_python_errors.py").write_text(
+                "\n".join(
+                    [
+                        "from pathlib import Path",
+                        "import sys",
+                        "import numpy as np",
+                        "",
+                        "ROOT = Path(__file__).resolve().parent",
+                        f"sys.path.insert(0, {str(project.output_dir / 'python')!r})",
+                        "",
+                        "from nonneg_ls_wrapper.cgr_solver import cgr_solve",
+                        "from nonneg_ls import problem, A, b",
+                        "",
+                        'problem.register_solve("CGR", cgr_solve)',
+                        "A.value = np.array([[1.0, 2.0], [0.0, 3.0], [0.0, 0.0]])",
+                        "b.value = np.array([1.0, 2.0, 3.0])",
+                        "for kwargs in ({'not_a_setting': 1}, {'pardiso_verbose': True}):",
+                        "    try:",
+                        "        problem.solve(method='CGR', updated_params=['A', 'b'], **kwargs)",
+                        "    except TypeError as error:",
+                        "        print(type(error).__name__, error)",
+                        "    else:",
+                        "        raise AssertionError(f'expected TypeError for {kwargs}')",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            result = subprocess.run(
+                [sys.executable, str(workspace / "run_python_errors.py")],
+                cwd=workspace,
+                check=True,
+                capture_output=True,
+                text=True,
+                env=self._cargo_env(),
+            )
+            self.assertIn("unrecognized solver setting 'not_a_setting'", result.stdout)
+            self.assertIn("unsupported by this generated Rust solver: pardiso_verbose", result.stdout)
 
 
     @pytest.mark.python_wrapper

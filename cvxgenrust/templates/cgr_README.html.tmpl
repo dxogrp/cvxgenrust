@@ -246,6 +246,7 @@
       <a href="#api">API</a>
       <a href="#python">Python</a>
       <a href="#rust">Rust</a>
+      <a href="#solver-settings">Solver Settings</a>
     </nav>
   </div>
 </header>
@@ -320,7 +321,7 @@ __DUAL_VARIABLE_ROWS__
         <div class="file-note"><strong>src/runtime.rs</strong><p>Reusable generated runtime support: sparse matrix containers, canonical problem data, solve results, error types, and affine-map helpers.</p></div>
         <div class="file-note"><strong>src/data.rs</strong><p>Problem-specific static sparse canonicalization data and constructors used by <code>CGRProblem::canonical_cone_prob</code>.</p></div>
         <div class="file-note"><strong>examples/solve.rs</strong><p>Runnable Rust example that initializes placeholder parameter values, solves the problem, and prints the status, objective, and first variable.</p></div>
-        <div class="file-note"><strong>python/__PACKAGE_NAME_TEXT__/cgr_solver.py</strong><p>CVXPY custom solve method. It flattens updated parameters, calls the compiled PyO3 <code>solve(parameter_vector)</code> function, and unpacks results back through CVXPY.</p></div>
+        <div class="file-note"><strong>python/__PACKAGE_NAME_TEXT__/cgr_solver.py</strong><p>CVXPY custom solve method. It flattens updated parameters, forwards supported Clarabel settings, calls the compiled PyO3 solve function, and unpacks results back through CVXPY.</p></div>
       </div>
     </div>
   </section>
@@ -365,6 +366,30 @@ __MODULE_NAME_TEXT__ = { path = "/path/to/__OUTPUT_DIR_NAME_TEXT__" }</code></pr
       <h3>Run the Rust Example</h3>
       <p>The project also includes <code>examples/solve.rs</code>, which can be run directly from this directory.</p>
       <pre><code>cargo run --example solve</code></pre>
+    </div>
+  </section>
+
+  <section id="solver-settings">
+    <h2>Solver Settings</h2>
+    <div class="usage-card">
+      <h3>Rust</h3>
+      <p>Configure Clarabel with the generated crate's <code>ClarabelSettings</code> re-export, then pass those settings into <code>solve_with_settings</code>.</p>
+      <pre><code>use __MODULE_NAME_TEXT__::ClarabelSettings;
+
+let mut settings = ClarabelSettings::&lt;f64&gt;::default();
+settings.max_iter = 100;
+settings.tol_feas = 1e-7;
+
+let solution = problem.solve_with_settings(settings)?;</code></pre>
+    </div>
+    <div class="usage-card">
+      <h3>Python / CVXPY</h3>
+      <p>Pass Clarabel solver options directly through the normal CVXPY <code>solve</code> call.</p>
+      <pre><code>problem.solve(
+    method="CGR",
+    max_iter=100,
+    tol_feas=1e-7,
+)</code></pre>
     </div>
   </section>
 </main>
