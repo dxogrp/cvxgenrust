@@ -6,7 +6,7 @@ from typing import Any
 
 TEMPLATES_DIR = Path(__file__).with_name("templates")
 PYPROJECT_PATH = Path(__file__).resolve().parent.parent / "pyproject.toml"
-GENERATOR_DISPLAY_NAME = "CvxGenRust"
+GENERATOR_DISPLAY_NAME = "cvxgenrust"
 
 
 def _load_pyproject() -> dict[str, Any]:

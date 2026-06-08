@@ -12,6 +12,7 @@ from .config import (
     CLARABEL_VERSION,
     GENERATED_PYTHON_DEPENDENCIES,
     GENERATED_REQUIRES_PYTHON,
+    GENERATOR_DISPLAY_NAME,
     GENERATOR_VERSION,
 )
 from .extract import extract_problem
@@ -129,6 +130,19 @@ def _compile_python_wrapper(output_dir: Path) -> None:
 
 @dataclass
 class CodeGenerator:
+    """Stateful generator for one CVXPY problem family.
+
+    Parameters
+    ----------
+    module_name:
+        Rust crate/module name for the generated solver project.
+    wrapper:
+        Whether to compile the generated Python extension wrapper after writing
+        the project files.
+    verbose:
+        Whether to print progress messages to stderr.
+    """
+
     module_name: str
     wrapper: bool = True
     verbose: bool = True
@@ -161,7 +175,7 @@ class CodeGenerator:
 
     def progress(self, message: str) -> None:
         if self.verbose:
-            print(f"[CvxGenRust] {message}", file=sys.stderr)
+            print(f"[{GENERATOR_DISPLAY_NAME}] {message}", file=sys.stderr)
 
     def generated_timestamp(self) -> str:
         return datetime.now().astimezone().isoformat(timespec="seconds")

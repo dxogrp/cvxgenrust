@@ -85,5 +85,16 @@ class ProblemSpec:
 
 @dataclass
 class GeneratedRustProject:
+    """Description of a generated Rust solver project.
+
+    Attributes
+    ----------
+    spec:
+        Extracted problem metadata used to render the solver.
+    output_dir:
+        Directory containing the generated Cargo project and Python wrapper
+        sources.
+    """
+
     spec: ProblemSpec
     output_dir: Path
