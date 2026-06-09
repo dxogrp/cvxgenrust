@@ -8,15 +8,9 @@ from pathlib import Path
 
 import cvxpy as cp
 
-from .config import (
-    CLARABEL_VERSION,
-    GENERATED_PYTHON_DEPENDENCIES,
-    GENERATED_REQUIRES_PYTHON,
-    GENERATOR_DISPLAY_NAME,
-    GENERATOR_VERSION,
-)
+from .config import GENERATOR_DISPLAY_NAME
 from .extract import extract_problem
-from .names import _rust_ident, _snake_case, _wrapper_package_name
+from .names import _rust_ident, _wrapper_package_name
 from .render import (
     _render_generated_cargo,
     _render_generated_data,
@@ -245,12 +239,7 @@ class CodeGenerator:
 
 
 __all__ = [
-    "CLARABEL_VERSION",
-    "GENERATED_PYTHON_DEPENDENCIES",
-    "GENERATED_REQUIRES_PYTHON",
-    "GENERATOR_VERSION",
     "CodeGenerator",
     "GeneratedRustProject",
-    "_snake_case",
     "extract_problem",
 ]
