@@ -549,6 +549,7 @@ clarabel = { version = "__CLARABEL_VERSION__", features = ["sdp-openblas", "faer
             module_name=spec.module_name,
         ),
         CRATE_NAME=spec.module_name,
+        MODULE_NAME=spec.module_name,
         LIB_NAME=spec.module_name.replace("-", "_"),
         DEPENDENCIES=dependencies.replace("__CLARABEL_VERSION__", CLARABEL_VERSION),
         PYO3_VERSION=PYO3_VERSION,
