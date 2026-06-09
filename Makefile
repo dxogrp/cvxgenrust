@@ -19,6 +19,22 @@ test: sync ## run the test suite
 	@printf "$(BLUE)Running tests...$(RESET)\n"
 	@uv run pytest tests
 
+.PHONY: build
+build: sync ## build source and wheel distributions
+	@printf "$(BLUE)Building package artifacts...$(RESET)\n"
+	@rm -rf dist
+	@uv build
+
+.PHONY: release-check
+release-check: sync ## run release validation checks
+	@printf "$(BLUE)Running release test suite...$(RESET)\n"
+	@CARGO_TARGET_DIR=$${CARGO_TARGET_DIR:-$(CURDIR)/target/cvxgenrust-ci} uv run python -m pytest tests -m "not (sdp and (numerical or rust_smoke))"
+	@printf "$(BLUE)Building release artifacts...$(RESET)\n"
+	@rm -rf dist
+	@uv build
+	@printf "$(BLUE)Checking release artifacts...$(RESET)\n"
+	@uv run twine check dist/*
+
 .PHONY: marimo
 marimo: sync-examples ## open Marimo apps from the examples directory
 	@printf "$(BLUE)Opening Marimo examples...$(RESET)\n"
@@ -27,7 +43,7 @@ marimo: sync-examples ## open Marimo apps from the examples directory
 .PHONY: clean
 clean: ## remove local build and test artifacts
 	@printf "$(BLUE)Cleaning local artifacts...$(RESET)\n"
-	@rm -rf .pytest_cache
+	@rm -rf .pytest_cache build dist *.egg-info src/*.egg-info
 
 .PHONY: help
 help: ## display this help message

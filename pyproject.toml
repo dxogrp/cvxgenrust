@@ -4,11 +4,25 @@ version = "0.1.0"
 description = "Embedded Rust code generation for CVXPY"
 readme = "README.md"
 requires-python = ">=3.12"
+license = "Apache-2.0"
+authors = [
+    { name = "Hao Zhu", email = "zhuh@cs.uni-freiburg.de"},
+]
+keywords = [
+    "cvxpy",
+    "convex optimization",
+    "code-generation",
+    "rust",
+    "clarabel",
+]
 dependencies = [
     "cvxpy>=1.9",
     "numpy>=1.26",
     "scipy>=1.13",
 ]
+
+[project.urls]
+Repository = "https://github.com/dxogrp/cvxgenrust"
 
 [build-system]
 requires = ["hatchling"]
@@ -17,9 +31,19 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["cvxgenrust"]
 
+[tool.hatch.build.targets.sdist]
+only-include = [
+    "/cvxgenrust",
+    "/README.md",
+    "/LICENSE",
+    "/pyproject.toml",
+]
+
 [dependency-groups]
 dev = [
+    "build>=1.2",
     "pytest>=8.3",
+    "twine>=6.0",
 ]
 examples = [
     "marimo>=0.13",
