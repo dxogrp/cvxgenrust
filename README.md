@@ -8,11 +8,19 @@ wrapper that can be registered as a custom CVXPY solve method for prototyping.
 
 ## Installation
 
-This package is currently in an early stage of development. The recommended
-setup is a development install from this repository.
+Install the released package from PyPI with:
 
-We use [uv](https://github.com/astral-sh/uv) to manage dependencies. Once `uv`
-is installed, run:
+```bash
+pip install cvxgenrust
+```
+
+Generated solver projects use Rust, Cargo, Clarabel, and, when the Python
+wrapper is enabled, a PyO3/maturin build. Install a stable Rust toolchain before
+building or importing generated extension wrappers.
+
+For development from this repository, use [uv](https://github.com/astral-sh/uv)
+to manage dependencies. Once `uv` is installed, run:
+
 
 ```bash
 make sync
@@ -60,6 +68,10 @@ You can build and run the generated Rust project with:
 cd nonneg_ls_cgr
 cargo run --example solve
 ```
+
+By default, `generate_code` also compiles the generated Python extension wrapper
+into the generated project's `python/` directory. Pass `wrapper=False` to only
+write the Rust crate and Python wrapper sources.
 
 ## Related projects
 
