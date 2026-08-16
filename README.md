@@ -6,6 +6,8 @@ family. The generated crate reconstructs canonical cone-program data and solves
 it with [Clarabel](https://clarabel.org/stable/). It also includes a Python
 wrapper that can be registered as a custom CVXPY solve method for prototyping.
 
+More details can be found in the associated [paper](https://haozhu10015.github.io/papers/cvxgenrust.html).
+
 ## Installation
 
 Install the released package from PyPI with:
