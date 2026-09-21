@@ -30,7 +30,7 @@ class GeneratedDocsTests(GeneratedCodeTestCase):
 
             self.assertIn("/// Generated solver handle for this CVXPY problem.", lib_text)
             self.assertIn("/// Replaces parameter `A`.", lib_text)
-            self.assertIn("/// Shape: 3 x 2. Flattened size: 6. Offset: 0.", lib_text)
+            self.assertIn("/// Shape: 3 x 2. Packed size: 6. Offset: 0.", lib_text)
             self.assertIn("pub fn set_a", lib_text)
             self.assertIn("/// Updates one scalar entry of parameter `A`.", lib_text)
             self.assertIn("pub fn update_a", lib_text)
@@ -68,7 +68,7 @@ class GeneratedDocsTests(GeneratedCodeTestCase):
             self.assertIn("let solution = problem.solve()?;", readme_text)
             self.assertIn("Interface Reference", readme_text)
             self.assertIn("SolveResult", readme_text)
-            self.assertIn("Entry updates use zero-based flattened indices", readme_text)
+            self.assertIn("Entry updates use zero-based packed indices", readme_text)
             self.assertIn("Canonical Dual Blocks", readme_text)
             self.assertIn("src/runtime.rs", readme_text)
             self.assertIn("src/data.rs", readme_text)

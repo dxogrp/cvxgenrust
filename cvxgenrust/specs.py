@@ -33,13 +33,36 @@ class AffineVectorMapSpec:
     output_len: int
 
 
+@dataclass(frozen=True)
+class ParameterLayoutSpec:
+    kind: str
+    flat_indices: tuple[int, ...] = ()
+
+    def __post_init__(self) -> None:
+        supported_kinds = {
+            "dense_column_major",
+            "diagonal",
+            "symmetric_upper_triangle",
+            "sparse_diagonal",
+            "sparse_upper_triangle",
+            "sparse_lower_triangle",
+            "sparse_explicit",
+        }
+        if self.kind not in supported_kinds:
+            raise ValueError(f"unsupported parameter layout kind: {self.kind!r}")
+        if self.kind != "sparse_explicit" and self.flat_indices:
+            raise ValueError(
+                "flat parameter indices are only valid for sparse_explicit layouts"
+            )
+
+
 @dataclass
 class ParameterSpec:
     name: str
     shape: tuple[int, ...]
     size: int
     offset: int
-    pack: str | None = None
+    layout: ParameterLayoutSpec
 
 
 @dataclass

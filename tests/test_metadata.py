@@ -259,7 +259,8 @@ class MetadataTests(GeneratedCodeTestCase):
             [(parameter.name, parameter.size) for parameter in spec.parameters],
             [("P", 3), ("q", 2)],
         )
-        self.assertEqual(spec.parameters[0].pack, "upper_tri")
+        self.assertEqual(spec.parameters[0].shape, (2, 2))
+        self.assertEqual(spec.parameters[0].layout.kind, "symmetric_upper_triangle")
         self.assertGreater(len(spec.p_map.reduced.data), 0)
 
     @pytest.mark.sdp
