@@ -74,6 +74,75 @@ class FunctionalTests(GeneratedCodeTestCase):
         )
         return project_dir
 
+    def _write_structured_rust_project(self, workspace: Path, generated_dir: Path) -> Path:
+        project_dir = workspace / "structured_rust_user_app"
+        (project_dir / "src").mkdir(parents=True, exist_ok=True)
+        (project_dir / "Cargo.toml").write_text(
+            "\n".join(
+                [
+                    "[package]",
+                    'name = "structured_rust_user_app"',
+                    'version = "0.1.0"',
+                    'edition = "2024"',
+                    "",
+                    "[dependencies]",
+                    f'structured_parameters = {{ path = "{generated_dir.as_posix()}" }}',
+                ]
+            ),
+            encoding="utf-8",
+        )
+        (project_dir / "src" / "main.rs").write_text(
+            "\n".join(
+                [
+                    "use structured_parameters::{",
+                    "    CGRProblem, ParameterLayout, SparseParameterPattern,",
+                    "};",
+                    "",
+                    "fn assert_target(values: &[f64]) {",
+                    "    let expected = [0.4, 0.7, 0.2];",
+                    "    for (actual, expected) in values.iter().zip(expected) {",
+                    '        assert!((actual - expected).abs() < 1e-5, "{actual} != {expected}");',
+                    "    }",
+                    "}",
+                    "",
+                    "fn main() -> Result<(), Box<dyn std::error::Error>> {",
+                    "    let mut problem = CGRProblem::new();",
+                    "    let l = problem.parameter_info().iter().find(|p| p.name == \"L\").unwrap();",
+                    "    assert_eq!(l.shape, &[3, 3]);",
+                    "    assert_eq!(l.size, 6);",
+                    "    assert!(matches!(",
+                    "        &l.layout,",
+                    "        ParameterLayout::Sparse(SparseParameterPattern::LowerTriangle)",
+                    "    ));",
+                    "    let s = problem.parameter_info().iter().find(|p| p.name == \"S\").unwrap();",
+                    "    match &s.layout {",
+                    "        ParameterLayout::Sparse(SparseParameterPattern::Explicit { flat_indices }) => {",
+                    "            assert_eq!(*flat_indices, &[6, 1, 5]);",
+                    "        }",
+                    "        other => panic!(\"unexpected S layout: {other:?}\"),",
+                    "    }",
+                    "",
+                    "    problem.set_l(&[2.0, 0.25, 1.5, -0.1, 0.3, 1.25])?;",
+                    "    problem.set_s(&[0.4, -0.2, 0.15])?;",
+                    "    problem.set_d(&[0.5, 0.75, 1.0])?;",
+                    "    problem.set_b(&[1.08, 1.595, 0.725])?;",
+                    "    let first = problem.solve()?;",
+                    "    assert_target(&problem.extract_x(&first.x)?);",
+                    "",
+                    "    problem.set_l(&[1.8, 0.1, 1.4, 0.2, 0.25, 1.1])?;",
+                    "    problem.set_s(&[0.2, -0.1, 0.05])?;",
+                    "    problem.set_b(&[0.96, 1.505, 0.71])?;",
+                    "    let second = problem.solve()?;",
+                    "    assert_target(&problem.extract_x(&second.x)?);",
+                    '    println!("structured parameter workflow passed");',
+                    "    Ok(())",
+                    "}",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        return project_dir
+
     @pytest.mark.python_wrapper
     def test_python_wrapper_user_workflow_runs(self):
         fixture = self._build_nonneg_ls_problem()
@@ -229,6 +298,29 @@ class FunctionalTests(GeneratedCodeTestCase):
             self.assertIn("status = Solved", result.stdout)
             self.assertIn("objective =", result.stdout)
             self.assertIn("x =", result.stdout)
+
+    @pytest.mark.rust_smoke
+    def test_structured_parameter_rust_workflow_runs(self):
+        fixture = self._build_structured_parameter_problem()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            workspace = Path(tmpdir)
+            output_dir = workspace / "structured_parameters_cgr"
+            cgr.generate_code(
+                fixture.problem,
+                code_dir=output_dir,
+                module_name="structured_parameters",
+                wrapper=False,
+            )
+            project_dir = self._write_structured_rust_project(workspace, output_dir)
+            result = subprocess.run(
+                ["cargo", "run", "--manifest-path", str(project_dir / "Cargo.toml")],
+                cwd=workspace,
+                check=True,
+                capture_output=True,
+                text=True,
+                env=self._cargo_env(),
+            )
+            self.assertIn("structured parameter workflow passed", result.stdout)
 
     @pytest.mark.rust_smoke
     def test_generated_rust_example_runs(self):

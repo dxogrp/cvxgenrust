@@ -1,5 +1,7 @@
+import cvxpy as cp
 import numpy as np
 import pytest
+from scipy.sparse import coo_array
 
 from tests.support import GeneratedCodeTestCase
 
@@ -47,8 +49,34 @@ class NumericalTests(GeneratedCodeTestCase):
 
     def test_parametric_quad_form_matches_cvxpy_solution_after_update(self):
         fixture = self._build_parametric_quad_form_problem()
-        tmpdir, method_name, _module = self._load_generated_module(fixture.problem, "param_qp")
+        tmpdir, method_name, module = self._load_generated_module(fixture.problem, "param_qp")
         try:
+            upper_triangle_metadata = {
+                "name": "matrix",
+                "layout": "symmetric_upper_triangle",
+                "size": 6,
+            }
+            matrix_values = [
+                (
+                    cp.Parameter((3, 3), symmetric=True, name="symmetric_matrix"),
+                    np.array([[1.0, 2.0, 3.0], [2.0, 4.0, 5.0], [3.0, 5.0, 6.0]]),
+                ),
+                (
+                    cp.Parameter((3, 3), PSD=True, name="psd_matrix"),
+                    np.array([[6.0, 1.0, 2.0], [1.0, 5.0, 1.5], [2.0, 1.5, 7.0]]),
+                ),
+                (
+                    cp.Parameter((3, 3), NSD=True, name="nsd_matrix"),
+                    -np.array([[6.0, 1.0, 2.0], [1.0, 5.0, 1.5], [2.0, 1.5, 7.0]]),
+                ),
+            ]
+            for parameter, value in matrix_values:
+                parameter.value = value
+                self.assertEqual(
+                    module._flatten_parameter(parameter, upper_triangle_metadata),
+                    value[np.triu_indices(3)].tolist(),
+                )
+
             first_cvxpy_value = fixture.problem.solve(solver="CLARABEL")
             first_cvxpy_x = np.array(fixture.variables["x"].value, copy=True)
             first_cvxpy_duals = [
@@ -92,6 +120,73 @@ class NumericalTests(GeneratedCodeTestCase):
         )
         self.assertTrue(np.allclose(second_generated_x, second_cvxpy_x, atol=1e-5))
         self.assertFalse(np.allclose(first_cvxpy_x, second_cvxpy_x, atol=1e-3))
+
+    def test_structured_parameters_match_known_solution_after_update(self):
+        fixture = self._build_structured_parameter_problem()
+        expected_x = np.array([0.4, 0.7, 0.2])
+        tmpdir, method_name, module = self._load_generated_module(
+            fixture.problem,
+            "structured_parameters",
+        )
+        try:
+            metadata = {item["name"]: item for item in module.PARAMETERS}
+            self.assertEqual(
+                module._flatten_parameter(fixture.parameters["L"], metadata["L"]),
+                [2.0, 0.25, 1.5, -0.1, 0.3, 1.25],
+            )
+            self.assertEqual(
+                module._flatten_parameter(fixture.parameters["S"], metadata["S"]),
+                [0.4, -0.2, 0.15],
+            )
+            self.assertEqual(
+                module._flatten_parameter(fixture.parameters["D"], metadata["D"]),
+                [0.5, 0.75, 1.0],
+            )
+            with self.assertRaisesRegex(ValueError, "expected 4"):
+                module._flatten_parameter(
+                    fixture.parameters["b"],
+                    {**metadata["b"], "size": 4},
+                )
+
+            first_value = fixture.problem.solve(method=method_name)
+            first_x = np.array(fixture.variables["x"].value, copy=True)
+
+            lower_rows, lower_cols = fixture.parameters["L"].sparse_idx
+            fixture.parameters["L"].value_sparse = coo_array(
+                (
+                    np.array([1.8, 0.1, 1.4, 0.2, 0.25, 1.1]),
+                    (lower_rows, lower_cols),
+                ),
+                shape=(3, 3),
+            )
+            sparse_rows, sparse_cols = fixture.parameters["S"].sparse_idx
+            fixture.parameters["S"].value_sparse = coo_array(
+                (
+                    np.array([0.2, -0.1, 0.05]),
+                    (sparse_rows, sparse_cols),
+                ),
+                shape=(3, 3),
+            )
+            # Switch from the initial SciPy sparse diagonal assignment to a
+            # dense one so both supported value representations are exercised.
+            fixture.parameters["D"].value = np.diag([0.5, 0.75, 1.0])
+            self.assertEqual(
+                module._flatten_parameter(fixture.parameters["D"], metadata["D"]),
+                [0.5, 0.75, 1.0],
+            )
+            fixture.parameters["b"].value = np.array([0.96, 1.505, 0.71])
+            second_value = fixture.problem.solve(
+                method=method_name,
+                updated_params=["L", "S", "D", "b"],
+            )
+            second_x = np.array(fixture.variables["x"].value, copy=True)
+        finally:
+            self._clear_generated_module(tmpdir, method_name)
+
+        self.assertAlmostEqual(float(first_value), 0.0, places=7)
+        self.assertTrue(np.allclose(first_x, expected_x, atol=1e-5))
+        self.assertAlmostEqual(float(second_value), 0.0, places=7)
+        self.assertTrue(np.allclose(second_x, expected_x, atol=1e-5))
 
 
     def test_socp_matches_cvxpy_solution(self):
