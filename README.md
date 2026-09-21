@@ -1,5 +1,7 @@
 # cvxgenrust
 
+[![CI](https://github.com/dxogrp/cvxgenrust/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/dxogrp/cvxgenrust/actions/workflows/ci.yml) [![PyPI](https://img.shields.io/pypi/v/cvxgenrust.svg)](https://pypi.org/project/cvxgenrust/) [![License](https://img.shields.io/github/license/dxogrp/cvxgenrust.svg)](https://github.com/dxogrp/cvxgenrust/blob/main/LICENSE)
+
 `cvxgenrust` takes a parameterized [CVXPY](https://www.cvxpy.org/)
 optimization problem and generates a Rust solver crate tailored to that problem
 family. The generated crate reconstructs canonical cone-program data and solves
@@ -79,7 +81,10 @@ code and usage examples.
 ### Structured parameters
 
 cvxgenrust supports real dense, diagonal, symmetric, PSD, NSD, and explicitly
-sparse CVXPY parameters. The coordinates excluded by a parameter's `sparsity=`
+sparse CVXPY parameters. Declaring invariant structure with `sparsity=` keeps
+known zero entries out of the generated canonical matrices; declaring the same
+parameter as dense can increase generated code size and solver work. The
+coordinates excluded by a parameter's `sparsity=`
 pattern must remain structural zeros for every update; use a dense parameter if
 any excluded entry may later become nonzero. Complex and Hermitian parameter
 layouts are not supported.
