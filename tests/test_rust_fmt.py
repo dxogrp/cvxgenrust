@@ -37,3 +37,27 @@ class GeneratedRustTests(GeneratedCodeTestCase):
                 text=True,
                 env=self._cargo_env(),
             )
+
+    def test_generated_structured_rust_crate_formats(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_dir = Path(tmpdir) / "structured_parameters_cgr"
+            cgr.generate_code(
+                self._build_structured_parameter_problem().problem,
+                code_dir=output_dir,
+                module_name="structured_parameters",
+                wrapper=False,
+            )
+
+            subprocess.run(
+                [
+                    "cargo",
+                    "fmt",
+                    "--check",
+                    "--manifest-path",
+                    str(output_dir / "Cargo.toml"),
+                ],
+                cwd=output_dir,
+                check=True,
+                capture_output=True,
+                text=True,
+            )

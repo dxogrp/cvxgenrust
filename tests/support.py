@@ -9,6 +9,7 @@ from pathlib import Path
 
 import cvxpy as cp
 import numpy as np
+from scipy.sparse import coo_array, diags
 
 from cvxgenrust import cgr
 from cvxgenrust.names import _wrapper_package_name
@@ -104,6 +105,46 @@ class GeneratedCodeTestCase(unittest.TestCase):
         P.value = np.array([[2.0, 0.25], [0.25, 1.0]])
         q.value = np.array([-1.0, -0.25])
         return ProblemFixture(problem=problem, variables={"x": x}, parameters={"P": P, "q": q})
+
+    def _build_structured_parameter_problem(self):
+        x = cp.Variable(3, name="x")
+        lower_rows, lower_cols = np.tril_indices(3)
+        sparse_rows = np.array([2, 0, 1])
+        sparse_cols = np.array([1, 2, 0])
+        L = cp.Parameter(
+            (3, 3),
+            sparsity=(lower_rows, lower_cols),
+            name="L",
+        )
+        S = cp.Parameter(
+            (3, 3),
+            sparsity=(sparse_rows, sparse_cols),
+            name="S",
+        )
+        D = cp.Parameter((3, 3), diag=True, name="D")
+        b = cp.Parameter(3, name="b")
+        problem = cp.Problem(cp.Minimize(cp.sum_squares((L + S + D) @ x - b)))
+
+        L.value_sparse = coo_array(
+            (
+                np.array([2.0, 0.25, 1.5, -0.1, 0.3, 1.25]),
+                (lower_rows, lower_cols),
+            ),
+            shape=(3, 3),
+        )
+        # Assign in the deliberately unsorted declaration order. CVXPY stores
+        # these values in canonical sparse_idx order as [0.4, -0.2, 0.15].
+        S.value_sparse = coo_array(
+            (np.array([0.15, 0.4, -0.2]), (sparse_rows, sparse_cols)),
+            shape=(3, 3),
+        )
+        D.value = diags([np.array([0.5, 0.75, 1.0])], [0], shape=(3, 3))
+        b.value = np.array([1.08, 1.595, 0.725])
+        return ProblemFixture(
+            problem=problem,
+            variables={"x": x},
+            parameters={"L": L, "S": S, "D": D, "b": b},
+        )
 
     def _build_socp_problem(self):
         x = cp.Variable(3, name="x")
