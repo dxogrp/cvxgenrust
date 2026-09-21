@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.metadata
 import io
 import re
 import tarfile
@@ -10,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from cvxgenrust.config import GENERATOR_VERSION
+from cvxgenrust import config
 from scripts.verify_release import canonical_stable_version, verify_distributions, write_checksums
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
@@ -156,9 +157,36 @@ def test_noncanonical_or_unstable_release_versions_are_rejected(version: str) ->
         canonical_stable_version(version)
 
 
+def test_generator_version_comes_from_distribution_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    requested_distributions: list[str] = []
+
+    def distribution_version(distribution_name: str) -> str:
+        requested_distributions.append(distribution_name)
+        return "9.8.7"
+
+    monkeypatch.setattr(config.importlib.metadata, "version", distribution_version)
+
+    assert config._load_generator_version() == "9.8.7"
+    assert requested_distributions == ["cvxgenrust"]
+
+
+def test_generator_version_falls_back_when_distribution_metadata_is_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def missing_distribution(distribution_name: str) -> str:
+        raise importlib.metadata.PackageNotFoundError(distribution_name)
+
+    monkeypatch.setattr(config.importlib.metadata, "version", missing_distribution)
+
+    assert config._load_generator_version() == "0.0.0.dev0"
+
+
 def test_repository_release_metadata_is_consistent() -> None:
     project = tomllib.loads((REPOSITORY_ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
     project_version = canonical_stable_version(project["version"])
+    installed_version = importlib.metadata.version(project["name"])
 
     lock = tomllib.loads((REPOSITORY_ROOT / "uv.lock").read_text(encoding="utf-8"))
     root_packages = [
@@ -170,7 +198,8 @@ def test_repository_release_metadata_is_consistent() -> None:
     assert root_packages[0]["version"] == str(project_version), (
         "Run `uv lock` after changing the project version."
     )
-    assert GENERATOR_VERSION == str(project_version)
+    assert installed_version == str(project_version)
+    assert config.GENERATOR_VERSION == installed_version
 
 
 def test_release_distributions_and_checksums(tmp_path: Path) -> None:
