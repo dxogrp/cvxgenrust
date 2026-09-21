@@ -31,9 +31,18 @@ release-check: sync ## run release validation checks
 	@CARGO_TARGET_DIR=$${CARGO_TARGET_DIR:-$(CURDIR)/target/cvxgenrust-ci} uv run python -m pytest tests -m "not (sdp and (numerical or rust_smoke))"
 	@printf "$(BLUE)Building release artifacts...$(RESET)\n"
 	@rm -rf dist
-	@uv build
+	@uv build --no-sources
 	@printf "$(BLUE)Checking release artifacts...$(RESET)\n"
-	@uv run twine check dist/*
+	@PACKAGE_VERSION="$$(uv run --frozen python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')"; \
+		uv run --frozen --group dev python scripts/verify_release.py --version "$$PACKAGE_VERSION"
+	@printf "$(BLUE)Smoke-testing release artifacts...$(RESET)\n"
+	@PACKAGE_VERSION="$$(uv run --frozen python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')"; \
+		for distribution in dist/*.whl dist/*.tar.gz; do \
+			CVXGENRUST_RELEASE_VERSION="$$PACKAGE_VERSION" \
+			CVXGENRUST_REPOSITORY_ROOT="$(CURDIR)" \
+			uv run --isolated --no-project --with "$$distribution" -- python scripts/release_smoke.py \
+				|| exit 1; \
+		done
 
 .PHONY: marimo
 marimo: sync-examples ## open Marimo apps from the examples directory

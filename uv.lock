@@ -330,6 +330,7 @@ dependencies = [
 [package.dev-dependencies]
 dev = [
     { name = "build" },
+    { name = "packaging" },
     { name = "pytest" },
     { name = "twine" },
 ]
@@ -348,6 +349,7 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "build", specifier = ">=1.2" },
+    { name = "packaging", specifier = ">=25" },
     { name = "pytest", specifier = ">=8.3" },
     { name = "twine", specifier = ">=6.0" },
 ]

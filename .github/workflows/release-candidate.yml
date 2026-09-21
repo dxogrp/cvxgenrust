@@ -1,0 +1,102 @@
+name: Release candidate
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: cvxgenrust-release
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Verify release candidate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      CARGO_TARGET_DIR: ${{ github.workspace }}/target/cvxgenrust-ci
+
+    steps:
+      - name: Require a main-branch dispatch
+        env:
+          SELECTED_REF: ${{ github.ref }}
+        run: |
+          if [ "$SELECTED_REF" != "refs/heads/main" ]; then
+            echo "Release candidates must be dispatched from main, not $SELECTED_REF." >&2
+            exit 1
+          fi
+
+      - name: Check out the selected commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.13"
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+        with:
+          toolchain: stable
+
+      - name: Cache Rust builds
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          cache-targets: true
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          enable-cache: true
+
+      - name: Check the lockfile
+        run: uv lock --check
+
+      - name: Install verification dependencies
+        run: uv sync --frozen --group dev --group examples
+
+      - name: Validate stable package version
+        id: version
+        run: |
+          uv run --frozen --group dev python - <<'PY'
+          import os
+          import tomllib
+          from pathlib import Path
+
+          from scripts.verify_release import canonical_stable_version
+
+          package_version = tomllib.loads(
+              Path("pyproject.toml").read_text(encoding="utf-8")
+          )["project"]["version"]
+          canonical_stable_version(package_version)
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
+              output.write(f"package_version={package_version}\n")
+          PY
+
+      - name: Run release tests
+        run: uv run --frozen --group dev python -m pytest tests -m "not (sdp and (numerical or rust_smoke))"
+
+      - name: Check Marimo examples
+        run: |
+          uv run --frozen --group examples marimo check --strict \
+            examples/nonneg_ls.py \
+            examples/nearest_corr_mat.py \
+            examples/parameter_layouts.py
+
+      - name: Summarize verified release candidate
+        env:
+          PACKAGE_VERSION: ${{ steps.version.outputs.package_version }}
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          {
+            echo "### Verified release candidate"
+            echo
+            echo "Version: \`$PACKAGE_VERSION\`"
+            echo
+            echo "Source commit: \`$SOURCE_SHA\`"
+            echo
+            echo "Create tag \`v$PACKAGE_VERSION\` at exactly \`$SOURCE_SHA\`."
+          } >> "$GITHUB_STEP_SUMMARY"

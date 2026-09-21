@@ -33,15 +33,16 @@ packages = ["cvxgenrust"]
 
 [tool.hatch.build.targets.sdist]
 only-include = [
-    "/cvxgenrust",
-    "/README.md",
-    "/LICENSE",
-    "/pyproject.toml",
+    "cvxgenrust",
+    "README.md",
+    "LICENSE",
+    "pyproject.toml",
 ]
 
 [dependency-groups]
 dev = [
     "build>=1.2",
+    "packaging>=25",
     "pytest>=8.3",
     "twine>=6.0",
 ]
