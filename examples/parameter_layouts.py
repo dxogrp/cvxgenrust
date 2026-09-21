@@ -44,9 +44,10 @@ def _(mo):
         \mathop{\mathrm{minimize}}_x \; \left\|(M + S)x - b\right\|_2^2.
     \]
 
-    Python callers assign the logical values. The generated wrapper converts
-    `M.value` to column-major order and forwards `S.value_sparse.data` in
-    `S.sparse_idx` order.
+    Python callers assign the logical values. Sparse coordinate/value pairs may
+    be supplied in any order as long as they stay paired. CVXPY canonicalizes
+    them into `S.sparse_idx` order, and the generated wrapper forwards the
+    resulting `S.value_sparse.data`.
     """)
     return
 
@@ -75,7 +76,10 @@ def _(cp, np, sparse):
         ]
     )
     S.value_sparse = sparse.coo_array(
-        (np.array([0.4, -0.2, 0.15]), S.sparse_idx),
+        (
+            np.array([0.15, 0.4, -0.2]),
+            (sparse_rows, sparse_cols),
+        ),
         shape=S.shape,
     )
     b.value = np.array([0.95, 1.01, 0.475])
