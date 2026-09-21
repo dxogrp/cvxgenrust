@@ -61,9 +61,6 @@ You should always set `name=` on CVXPY parameters and variables. The generated R
 setters, extractors, metadata, and Python wrapper use those names after code
 generation.
 
-An HTML summary of the generated project is written to
-`nonneg_ls_cgr/README.html`.
-
 You can build and run the generated Rust project with:
 
 ```bash
@@ -74,6 +71,10 @@ cargo run --example solve
 By default, `generate_code` also compiles the generated Python extension wrapper
 into the generated project's `python/` directory. Pass `wrapper=False` to only
 write the Rust crate and Python wrapper sources.
+
+An HTML documentation of the generated project is written to
+`nonneg_ls_cgr/README.html`, where you can find more details of the generated
+code and usage examples.
 
 ## Parameter layouts
 
