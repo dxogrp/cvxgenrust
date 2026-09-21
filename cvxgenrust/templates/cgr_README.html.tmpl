@@ -277,6 +277,7 @@ __DUAL_VARIABLE_ROWS__
         </table>
       </div>
     </div>
+    <p>The following rules describe how to order parameter values when calling the generated Rust setters; the Python wrapper performs this packing automatically from CVXPY <code>.value</code> or <code>.value_sparse</code> assignments.</p>
     <p>Parameter dimensions are the original logical CVXPY shapes. A parameter's size is its packed storage length, which may be smaller than the product of its dimensions. Rust setters require exactly that many entries; <code>ParameterInfo.layout</code> describes their order.</p>
     <ul>
       <li>Dense parameters, vectors, and scalars use column-major (<code>numpy.flatten(order="F")</code>) order.</li>
@@ -284,7 +285,8 @@ __DUAL_VARIABLE_ROWS__
       <li>Symmetric, PSD, and NSD parameters use the upper triangle in <code>numpy.triu_indices(n)</code> order.</li>
       <li>Parameters declared with CVXPY's <code>sparsity=</code> attribute use canonical <code>parameter.sparse_idx</code> order. Exact diagonal and triangular patterns have compact metadata; arbitrary patterns expose one Fortran-flat index per packed entry.</li>
     </ul>
-    <p>The generated Python wrapper applies these rules automatically and validates each packed length. For a sparse parameter, assign through <code>parameter.value_sparse</code>; the wrapper consumes <code>parameter.value_sparse.data</code> without densifying it.</p>
+    <p>For direct Rust setters, an arbitrary sparse layout is represented by <code>SparseParameterPattern::Explicit { flat_indices }</code>. For a matrix with <code>rows</code> rows, coordinate <code>(row, column)</code> has flat index <code>row + rows * column</code>. Higher-rank parameters follow NumPy's Fortran-order convention, <code>numpy.ravel_multi_index(..., order="F")</code>.</p>
+    <p>The generated Python wrapper applies these rules automatically and validates each packed length, so Python callers do not construct flat indices themselves. For a sparse parameter, assign through <code>parameter.value_sparse</code>; the wrapper consumes <code>parameter.value_sparse.data</code> without densifying it.</p>
     <p>Dual blocks are slices of the canonical solver dual vector <code>SolveResult.z</code>. They may not be identical to original CVXPY constraint dual values when CVXPY splits a constraint during canonicalization.</p>
   </section>
 

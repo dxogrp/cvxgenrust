@@ -76,49 +76,17 @@ An HTML documentation of the generated project is written to
 `nonneg_ls_cgr/README.html`, where you can find more details of the generated
 code and usage examples.
 
-## Parameter layouts
+### Structured parameters
 
-Generated solvers store each logical CVXPY parameter in a packed block.
-`ParameterInfo.shape` is the original CVXPY shape, while `ParameterInfo.size`
-is the number of packed entries accepted by the Rust setter. The order depends
-on `ParameterInfo.layout`:
+cvxgenrust supports real dense, diagonal, symmetric, PSD, NSD, and explicitly
+sparse CVXPY parameters. The coordinates excluded by a parameter's `sparsity=`
+pattern must remain structural zeros for every update; use a dense parameter if
+any excluded entry may later become nonzero. Complex and Hermitian parameter
+layouts are not supported.
 
-| CVXPY parameter | Rust setter order |
-| --- | --- |
-| Dense, scalar, or vector | Column-major (`numpy.flatten(order="F")`) |
-| `diag=True` | Main diagonal from top-left to bottom-right |
-| `symmetric=True`, `PSD=True`, or `NSD=True` | Upper triangle in `numpy.triu_indices(n)` order |
-| `sparsity=(rows, cols)` | CVXPY's canonical `parameter.sparse_idx` order |
-
-The generated Python wrapper performs this packing automatically and checks
-that every packed value has the expected length. For sparse parameters it reads
-`parameter.value_sparse.data`, avoiding a dense matrix conversion. Exact
-diagonal and triangular sparsity patterns have compact metadata; an arbitrary
-pattern exposes one Fortran-flat index for each packed entry through
-`SparseParameterPattern::Explicit`. For a matrix, that index is
-`row + rows * column`; higher-rank parameters follow NumPy's Fortran-order
-raveling convention.
-
-Declare structural sparsity on the CVXPY parameter instead of representing
-structural zeros only as numeric zeros in a dense value. For example:
-
-```python
-import cvxpy as cp
-import numpy as np
-from scipy import sparse
-
-rows = np.array([2, 0, 1])
-cols = np.array([1, 2, 0])
-S = cp.Parameter((3, 3), sparsity=(rows, cols), name="S")
-S.value_sparse = sparse.coo_array(
-    (np.array([0.3, 0.4, -0.2]), (rows, cols)),
-    shape=S.shape,
-)
-```
-
-CVXPY canonicalizes the sparse coordinates and values together; use
-`S.sparse_idx` and `S.value_sparse.data` when manually preparing the packed
-values for a generated Rust setter.
+Each generated `README.html` reports the logical shape, packed size, offset,
+layout, and exact Rust setter order for every parameter. Its generated Python
+example also shows how to assign values for that problem's layouts.
 
 ## Related projects
 

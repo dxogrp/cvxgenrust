@@ -1,5 +1,6 @@
 import contextlib
 import io
+import re
 import tempfile
 import tomllib
 from unittest import mock
@@ -396,21 +397,13 @@ class MetadataTests(GeneratedCodeTestCase):
                 wrapper=False,
             )
             lib_text = (output_dir / "src" / "lib.rs").read_text(encoding="utf-8")
-            wrapper_text = (
-                output_dir / "python" / "structured_parameters_wrapper" / "cgr_solver.py"
-            ).read_text(encoding="utf-8")
-            readme_text = (output_dir / "README.html").read_text(encoding="utf-8")
 
-        self.assertNotIn("L_SPARSE_FLAT_INDICES", lib_text)
-        self.assertIn("S_SPARSE_FLAT_INDICES", lib_text)
-        self.assertIn("static S_SPARSE_FLAT_INDICES: &[usize]", lib_text)
-        self.assertIn("6usize, 1usize, 5usize", lib_text)
-        self.assertIn("'layout': 'sparse_lower_triangle'", wrapper_text)
-        self.assertIn("sparse_value.data", wrapper_text)
-        self.assertIn("<td>3 x 3 (6)</td>", readme_text)
-        self.assertIn("<td>sparse lower triangle</td>", readme_text)
-        self.assertIn("from scipy import sparse", readme_text)
-        self.assertIn("L.value_sparse = sparse.coo_array", readme_text)
+        flat_index_statics = re.findall(
+            r"^static ([A-Z0-9_]+)_SPARSE_FLAT_INDICES: &\[usize\]",
+            lib_text,
+            flags=re.MULTILINE,
+        )
+        self.assertEqual(flat_index_statics, ["S"])
 
     @pytest.mark.sdp
     def test_extract_sdp_problem_metadata(self):

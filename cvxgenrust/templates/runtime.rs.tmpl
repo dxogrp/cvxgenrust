@@ -202,6 +202,8 @@ pub enum SparseParameterPattern {
     ///
     /// For a matrix with `rows` rows, coordinate `(row, column)` has flat index
     /// `row + rows * column`.
+    /// For higher-rank parameters, indices follow NumPy's Fortran-order ravel
+    /// convention (`numpy.ravel_multi_index(..., order="F")`).
     Explicit { flat_indices: &'static [usize] },
 }
 
