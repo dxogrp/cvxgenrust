@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import warnings
 from typing import Any
 
 import cvxpy as cp
@@ -14,6 +15,7 @@ from .specs import (
     CsrMatrixSpec,
     DualVariableSpec,
     MatrixPatternSpec,
+    ParameterLayoutSpec,
     ParameterSpec,
     ProblemSpec,
     VariableSpec,
@@ -85,25 +87,150 @@ def _zero_csc_map_spec(rows: int, cols: int, parameter_vec_len: int) -> AffineCs
     )
 
 
-def _parameter_pack_kind(
-    internal_parameter: cp.Parameter,
-    original_parameters_by_name: dict[str, cp.Parameter],
-) -> str | None:
-    original_parameter = original_parameters_by_name.get(internal_parameter.name() or "")
-    if original_parameter is None:
-        return None
+def _upper_triangle_size(rows: int, cols: int) -> int:
+    overlap = min(rows, cols)
+    return overlap * (overlap + 1) // 2 + max(cols - rows, 0) * rows
 
-    original_shape = tuple(int(x) for x in original_parameter.shape)
-    if len(original_shape) != 2 or original_shape[0] != original_shape[1]:
-        return None
 
-    n = original_shape[0]
-    if (
-        int(internal_parameter.size) == n * (n + 1) // 2
-        and int(original_parameter.size) == n * n
-    ):
-        return "upper_tri"
-    return None
+def _lower_triangle_size(rows: int, cols: int) -> int:
+    overlap = min(rows, cols)
+    return overlap * (overlap + 1) // 2 + max(rows - cols, 0) * cols
+
+
+def _coordinates_are_row_major(rows: np.ndarray, cols: np.ndarray) -> bool:
+    if rows.size < 2:
+        return True
+    return bool(
+        np.all(
+            (rows[1:] > rows[:-1])
+            | ((rows[1:] == rows[:-1]) & (cols[1:] > cols[:-1]))
+        )
+    )
+
+
+def _sparse_parameter_layout(parameter: cp.Parameter) -> ParameterLayoutSpec:
+    shape = tuple(int(x) for x in parameter.shape)
+    sparse_idx = getattr(parameter, "sparse_idx", None)
+    if sparse_idx is None:
+        raise ValueError(
+            f"parameter {parameter.name() or parameter.id!r} has no canonical sparsity indices"
+        )
+
+    coordinates = tuple(
+        np.asarray(axis, dtype=np.int64).reshape(-1) for axis in sparse_idx
+    )
+    if len(coordinates) != len(shape):
+        raise ValueError(
+            f"parameter {parameter.name() or parameter.id!r} has a sparsity pattern "
+            "whose rank does not match its shape"
+        )
+    coordinate_lengths = {int(axis.size) for axis in coordinates}
+    if len(coordinate_lengths) > 1:
+        raise ValueError(
+            f"parameter {parameter.name() or parameter.id!r} has inconsistent sparsity "
+            "coordinate lengths"
+        )
+
+    if len(shape) == 2:
+        row_count, col_count = shape
+        row_indices, col_indices = coordinates
+        entry_count = int(row_indices.size)
+        row_major = _coordinates_are_row_major(row_indices, col_indices)
+        if (
+            entry_count == min(row_count, col_count)
+            and row_major
+            and bool(np.all(row_indices == col_indices))
+        ):
+            return ParameterLayoutSpec(kind="sparse_diagonal")
+        if (
+            entry_count == _upper_triangle_size(row_count, col_count)
+            and row_major
+            and bool(np.all(col_indices >= row_indices))
+        ):
+            return ParameterLayoutSpec(kind="sparse_upper_triangle")
+        if (
+            entry_count == _lower_triangle_size(row_count, col_count)
+            and row_major
+            and bool(np.all(col_indices <= row_indices))
+        ):
+            return ParameterLayoutSpec(kind="sparse_lower_triangle")
+
+    flat_indices = tuple(
+        int(index)
+        for index in np.ravel_multi_index(coordinates, shape, order="F").tolist()
+    )
+    return ParameterLayoutSpec(kind="sparse_explicit", flat_indices=flat_indices)
+
+
+def _parameter_layout(parameter: cp.Parameter) -> ParameterLayoutSpec:
+    attributes = getattr(parameter, "attributes", {})
+    if parameter.is_complex() or attributes.get("hermitian", False):
+        raise ValueError(
+            f"parameter {parameter.name() or parameter.id!r} uses a complex or Hermitian "
+            "layout, which cvxgenrust does not support"
+        )
+
+    shape = tuple(int(x) for x in parameter.shape)
+    if attributes.get("diag", False):
+        if len(shape) != 2 or shape[0] != shape[1]:
+            raise ValueError(
+                f"diagonal parameter {parameter.name() or parameter.id!r} must be a square matrix"
+            )
+        return ParameterLayoutSpec(kind="diagonal")
+
+    if any(attributes.get(name, False) for name in ("symmetric", "PSD", "NSD")):
+        if len(shape) != 2 or shape[0] != shape[1]:
+            raise ValueError(
+                f"symmetric parameter {parameter.name() or parameter.id!r} must be a square matrix"
+            )
+        return ParameterLayoutSpec(kind="symmetric_upper_triangle")
+
+    if getattr(parameter, "sparse_idx", None) is not None:
+        return _sparse_parameter_layout(parameter)
+
+    return ParameterLayoutSpec(kind="dense_column_major")
+
+
+def _expected_parameter_size(
+    parameter: cp.Parameter,
+    layout: ParameterLayoutSpec,
+) -> int:
+    shape = tuple(int(x) for x in parameter.shape)
+    if layout.kind == "dense_column_major":
+        return int(parameter.size)
+    if layout.kind in {"diagonal", "sparse_diagonal"}:
+        return min(shape)
+    if layout.kind in {"symmetric_upper_triangle", "sparse_upper_triangle"}:
+        rows, cols = shape
+        return _upper_triangle_size(rows, cols)
+    if layout.kind == "sparse_lower_triangle":
+        rows, cols = shape
+        return _lower_triangle_size(rows, cols)
+    if layout.kind == "sparse_explicit":
+        return len(layout.flat_indices)
+    raise ValueError(f"unsupported parameter layout kind: {layout.kind!r}")
+
+
+def _canonical_parameter(
+    original_parameter: cp.Parameter,
+    composed_id_map: dict[int, list[int]],
+    canonical_parameters_by_id: dict[int, cp.Parameter],
+) -> cp.Parameter:
+    canonical_ids = composed_id_map.get(original_parameter.id, [original_parameter.id])
+    if len(canonical_ids) != 1:
+        raise ValueError(
+            f"parameter {original_parameter.name() or original_parameter.id!r} maps to "
+            f"{len(canonical_ids)} canonical parameter blocks {canonical_ids}; "
+            "cvxgenrust requires exactly one block per parameter"
+        )
+    canonical_id = int(canonical_ids[0])
+    canonical_parameter = canonical_parameters_by_id.get(canonical_id)
+    if canonical_parameter is None:
+        raise ValueError(
+            f"parameter {original_parameter.name() or original_parameter.id!r} maps to "
+            f"canonical parameter ID {canonical_id}, but that block is unavailable"
+        )
+    return canonical_parameter
 
 
 def _variable_unpack_kind(variable: cp.Variable) -> str | None:
@@ -138,7 +265,16 @@ def extract_problem(
     if not problem.is_dpp(quad_form_dpp="qp"):
         raise ValueError("problem must satisfy CVXPY's DPP rules for code generation")
     cvxpy_solver = cp.CLARABEL
-    data, _, inverse_data = problem.get_problem_data(cvxpy_solver)
+    # CVXPY 1.9 reads sparse parameters through `.value` internally while
+    # constructing the reduction chain, even when callers correctly use
+    # `.value_sparse`. Suppress only that known, spurious warning here.
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            message=r"Reading from a sparse CVXPY expression via `\.value` is discouraged\..*",
+            category=RuntimeWarning,
+        )
+        data, chain, inverse_data = problem.get_problem_data(cvxpy_solver)
     param_prob = data["param_prob"]
     parameter_vec_len = int(param_prob.total_param_size + 1)
     canonical_dim = int(getattr(param_prob.x, "size", data["A"].shape[1]))
@@ -153,21 +289,42 @@ def extract_problem(
     linear_obj_map = _extract_vector_map(linear_obj_tensor)
     dims = _extract_cone_dims(data["dims"])
     parameters = []
-    original_parameters_by_name = {
-        parameter.name(): parameter
-        for parameter in problem.parameters()
-        if parameter.name() is not None
+    composed_param_id_map = chain.compose_param_id_map()
+    canonical_parameters_by_id = {
+        int(parameter_id): parameter
+        for parameter_id, parameter in param_prob.id_to_param.items()
     }
-    for parameter in param_prob.parameters:
-        name = parameter.name() or f"param_{parameter.id}"
-        offset = int(param_prob.param_id_to_col[parameter.id])
+    for original_parameter in problem.parameters():
+        layout = _parameter_layout(original_parameter)
+        canonical_parameter = _canonical_parameter(
+            original_parameter,
+            composed_param_id_map,
+            canonical_parameters_by_id,
+        )
+        packed_size = int(canonical_parameter.size)
+        expected_size = _expected_parameter_size(original_parameter, layout)
+        if packed_size != expected_size:
+            name = original_parameter.name() or f"param_{original_parameter.id}"
+            raise ValueError(
+                f"parameter {name!r} has {layout.kind!r} layout with expected packed "
+                f"size {expected_size}, but its canonical block has size {packed_size}"
+            )
+        canonical_id = int(canonical_parameter.id)
+        if canonical_id not in param_prob.param_id_to_col:
+            name = original_parameter.name() or f"param_{original_parameter.id}"
+            raise ValueError(
+                f"parameter {name!r} maps to canonical parameter ID {canonical_id}, "
+                "but that block has no parameter-vector offset"
+            )
+        name = original_parameter.name() or f"param_{original_parameter.id}"
+        offset = int(param_prob.param_id_to_col[canonical_id])
         parameters.append(
             ParameterSpec(
                 name=name,
-                shape=tuple(int(x) for x in parameter.shape),
-                size=int(parameter.size),
+                shape=tuple(int(x) for x in original_parameter.shape),
+                size=packed_size,
                 offset=offset,
-                pack=_parameter_pack_kind(parameter, original_parameters_by_name),
+                layout=layout,
             )
         )
 

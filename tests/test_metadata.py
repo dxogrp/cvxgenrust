@@ -1,13 +1,16 @@
 import contextlib
 import io
+import re
 import tempfile
 import tomllib
 from unittest import mock
 from pathlib import Path
 
 import cvxpy as cp
+import numpy as np
 import pytest
 
+import cvxgenrust.extract as extract_module
 from cvxgenrust import cgr
 from cvxgenrust.config import (
     CLARABEL_VERSION,
@@ -259,8 +262,148 @@ class MetadataTests(GeneratedCodeTestCase):
             [(parameter.name, parameter.size) for parameter in spec.parameters],
             [("P", 3), ("q", 2)],
         )
-        self.assertEqual(spec.parameters[0].pack, "upper_tri")
+        self.assertEqual(spec.parameters[0].shape, (2, 2))
+        self.assertEqual(spec.parameters[0].layout.kind, "symmetric_upper_triangle")
         self.assertGreater(len(spec.p_map.reduced.data), 0)
+
+    def test_extract_structured_parameter_layout_metadata(self):
+        fixture = self._build_structured_parameter_problem()
+        spec = extract_problem(fixture.problem, module_name="structured_parameters")
+        parameters = {parameter.name: parameter for parameter in spec.parameters}
+
+        self.assertEqual(
+            {
+                name: (
+                    parameter.shape,
+                    parameter.size,
+                    parameter.offset,
+                    parameter.layout.kind,
+                    parameter.layout.flat_indices,
+                )
+                for name, parameter in parameters.items()
+            },
+            {
+                "L": ((3, 3), 6, 0, "sparse_lower_triangle", ()),
+                "S": ((3, 3), 3, 6, "sparse_explicit", (6, 1, 5)),
+                "D": ((3, 3), 3, 9, "diagonal", ()),
+                "b": ((3,), 3, 12, "dense_column_major", ()),
+            },
+        )
+        self.assertEqual(tuple(fixture.parameters["S"].sparse_idx[0]), (0, 1, 2))
+        self.assertEqual(tuple(fixture.parameters["S"].sparse_idx[1]), (2, 0, 1))
+        self.assertTrue(
+            np.allclose(fixture.parameters["S"].value_sparse.data, [0.4, -0.2, 0.15])
+        )
+
+    def test_extract_all_supported_real_parameter_layouts(self):
+        x = cp.Variable(3, name="x")
+        parameters = [
+            cp.Parameter((3, 3), name="dense"),
+            cp.Parameter((3, 3), diag=True, name="diag"),
+            cp.Parameter((3, 3), symmetric=True, name="symmetric"),
+            cp.Parameter((3, 3), PSD=True, name="psd"),
+            cp.Parameter((3, 3), NSD=True, name="nsd"),
+            cp.Parameter((3, 3), sparsity=np.diag_indices(3), name="sparse_diag"),
+            cp.Parameter((3, 3), sparsity=np.triu_indices(3), name="sparse_upper"),
+            cp.Parameter((3, 3), sparsity=np.tril_indices(3), name="sparse_lower"),
+        ]
+        problem = cp.Problem(
+            cp.Minimize(sum(cp.sum_squares(parameter @ x) for parameter in parameters))
+        )
+
+        spec = extract_problem(problem, module_name="all_parameter_layouts")
+        layouts = {parameter.name: parameter for parameter in spec.parameters}
+
+        self.assertEqual(
+            {
+                name: (
+                    parameter.shape,
+                    parameter.size,
+                    parameter.offset,
+                    parameter.layout.kind,
+                    parameter.layout.flat_indices,
+                )
+                for name, parameter in layouts.items()
+            },
+            {
+                "dense": ((3, 3), 9, 0, "dense_column_major", ()),
+                "diag": ((3, 3), 3, 9, "diagonal", ()),
+                "symmetric": ((3, 3), 6, 12, "symmetric_upper_triangle", ()),
+                "psd": ((3, 3), 6, 18, "symmetric_upper_triangle", ()),
+                "nsd": ((3, 3), 6, 24, "symmetric_upper_triangle", ()),
+                "sparse_diag": ((3, 3), 3, 30, "sparse_diagonal", ()),
+                "sparse_upper": ((3, 3), 6, 33, "sparse_upper_triangle", ()),
+                "sparse_lower": ((3, 3), 6, 39, "sparse_lower_triangle", ()),
+            },
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_dir = Path(tmpdir) / "all_parameter_layouts"
+            cgr.generate_code(
+                problem,
+                code_dir=output_dir,
+                module_name="all_parameter_layouts",
+                wrapper=False,
+            )
+            lib_text = (output_dir / "src" / "lib.rs").read_text(encoding="utf-8")
+
+        self.assertIn(
+            "ParameterLayout::Sparse(SparseParameterPattern::Diagonal)",
+            lib_text,
+        )
+        self.assertIn(
+            "ParameterLayout::Sparse(SparseParameterPattern::UpperTriangle)",
+            lib_text,
+        )
+        self.assertIn(
+            "ParameterLayout::Sparse(SparseParameterPattern::LowerTriangle)",
+            lib_text,
+        )
+        self.assertNotIn("SPARSE_FLAT_INDICES", lib_text)
+
+    def test_sparse_layout_detection_scales_with_stored_entries(self):
+        parameter = cp.Parameter(
+            (10_000, 10_000),
+            sparsity=([9_999, 0], [0, 9_999]),
+            name="large_sparse",
+        )
+        with (
+            mock.patch.object(
+                extract_module.np,
+                "triu_indices",
+                side_effect=AssertionError("must not materialize the upper triangle"),
+            ),
+            mock.patch.object(
+                extract_module.np,
+                "tril_indices",
+                side_effect=AssertionError("must not materialize the lower triangle"),
+            ),
+        ):
+            layout = extract_module._parameter_layout(parameter)
+            packed_size = extract_module._expected_parameter_size(parameter, layout)
+
+        self.assertEqual(layout.kind, "sparse_explicit")
+        self.assertEqual(layout.flat_indices, (99_990_000, 9_999))
+        self.assertEqual(packed_size, 2)
+
+    def test_compact_sparse_layouts_do_not_emit_index_arrays(self):
+        fixture = self._build_structured_parameter_problem()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_dir = Path(tmpdir) / "structured_parameters"
+            cgr.generate_code(
+                fixture.problem,
+                code_dir=output_dir,
+                module_name="structured_parameters",
+                wrapper=False,
+            )
+            lib_text = (output_dir / "src" / "lib.rs").read_text(encoding="utf-8")
+
+        flat_index_statics = re.findall(
+            r"^static ([A-Z0-9_]+)_SPARSE_FLAT_INDICES: &\[usize\]",
+            lib_text,
+            flags=re.MULTILINE,
+        )
+        self.assertEqual(flat_index_statics, ["S"])
 
     @pytest.mark.sdp
     def test_extract_sdp_problem_metadata(self):

@@ -6,8 +6,8 @@ mod runtime;
 pub use clarabel::solver::DefaultSettings as ClarabelSettings;
 pub use runtime::{
     AffineCscMap, AffineOffsetCscMap, AffineVectorMap, CanonicalConeQp, ConeDims, CscMatrix,
-    CsrMatrix, DualVariableInfo, MatrixPattern, ParameterInfo, RuntimeError, SolveResult,
-    VariableInfo,
+    CsrMatrix, DualVariableInfo, MatrixPattern, ParameterInfo, ParameterLayout, RuntimeError,
+    SolveResult, SparseParameterPattern, VariableInfo,
 };
 
 __PARAMETERS_STATIC__
@@ -18,7 +18,7 @@ __DUAL_VARIABLES_STATIC__
 
 /// Generated solver handle for this CVXPY problem.
 ///
-/// A `CGRProblem` owns the current flattened parameter values. Parameters start
+/// A `CGRProblem` owns the current packed parameter values. Parameters start
 /// at zero. Configure Clarabel by passing native
 /// [`ClarabelSettings`] values to
 /// [`CGRProblem::solve_with_settings`].
@@ -67,7 +67,7 @@ impl CGRProblem {
 
     /// Replaces one named parameter block.
     ///
-    /// `value` must contain exactly the flattened size reported by
+    /// `value` must contain exactly the packed size reported by
     /// [`CGRProblem::parameter_info`]. Returns [`RuntimeError::UnknownParameter`]
     /// for an unknown name and [`RuntimeError::DimensionMismatch`] for the wrong
     /// length.
@@ -93,7 +93,7 @@ impl CGRProblem {
 
     /// Updates one scalar entry of a named parameter block.
     ///
-    /// `index` is zero-based within the parameter's flattened block. Returns
+    /// `index` is zero-based within the parameter's packed block. Returns
     /// [`RuntimeError::UnknownParameter`] for an unknown name and
     /// [`RuntimeError::DimensionMismatch`] when `index` is out of bounds.
     pub fn update_parameter_entry(

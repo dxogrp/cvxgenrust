@@ -183,11 +183,5 @@ def _(last_input, last_repaired, mo, n, np, project, rows):
     """)
     return
 
-
-@app.cell
-def _():
-    return
-
-
 if __name__ == "__main__":
     app.run()

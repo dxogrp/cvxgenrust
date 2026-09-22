@@ -4,75 +4,195 @@ on:
   release:
     types:
       - published
-  workflow_dispatch:
 
-permissions:
-  contents: read
+concurrency:
+  group: cvxgenrust-release
+  cancel-in-progress: false
 
 jobs:
-  build:
-    name: Build distributions
+  verify:
+    name: Verify and build ${{ github.event.release.tag_name }}
+    if: ${{ !github.event.release.prerelease }}
     runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
     env:
       CARGO_TARGET_DIR: ${{ github.workspace }}/target/cvxgenrust-ci
+    outputs:
+      package_version: ${{ steps.version.outputs.package_version }}
 
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v6
+      - name: Check out the release tag
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ github.event.release.tag_name }}
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.13"
+
+      - name: Verify release identity
+        id: version
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          python - <<'PY'
+          import os
+          import tomllib
+          from pathlib import Path
+
+          project_version = tomllib.loads(Path("pyproject.toml").read_text())["project"]["version"]
+          release_tag = os.environ["RELEASE_TAG"]
+          if release_tag != f"v{project_version}":
+              raise SystemExit(
+                  f"Version mismatch: tag={release_tag!r}, project={project_version!r}."
+              )
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
+              output.write(f"package_version={project_version}\n")
+          PY
+          if ! git merge-base --is-ancestor HEAD refs/remotes/origin/main; then
+            echo "The release tag must point to a commit contained in main." >&2
+            exit 1
+          fi
+
+      - name: Require successful verification of this exact commit
+        env:
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag_sha="$(git rev-parse HEAD)"
+          candidate="$(
+            gh api --method GET \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "/repos/$GH_REPO/actions/workflows/release-candidate.yml/runs" \
+              -f branch=main \
+              -f event=workflow_dispatch \
+              -f head_sha="$tag_sha" \
+              -f status=success \
+              -f per_page=100 \
+              --jq '.workflow_runs | if length == 0 then empty else (max_by(.run_number) | [.head_sha, .html_url] | @tsv) end'
+          )"
+          if [ -z "$candidate" ]; then
+            echo "No successful release-candidate.yml run exists for commit $tag_sha." >&2
+            echo "Dispatch the Release candidate workflow from main at this exact commit before publishing the release." >&2
+            exit 1
+          fi
+          IFS=$'\t' read -r candidate_sha candidate_url <<< "$candidate"
+          if [ "$candidate_sha" != "$tag_sha" ] || [ -z "$candidate_url" ]; then
+            echo "The release-candidate query returned an invalid result." >&2
+            exit 1
+          fi
+          {
+            echo "### Release candidate gate"
+            echo
+            echo "Accepted [successful release-candidate run]($candidate_url) for \`$candidate_sha\`."
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+        with:
+          toolchain: stable
 
       - name: Cache Rust builds
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           cache-targets: true
 
       - name: Install uv
-        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
         with:
           enable-cache: true
 
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.13"
-
-      - name: Install dependencies
+      - name: Install release build dependencies
         run: uv sync --frozen --group dev
 
-      - name: Run release tests
-        run: uv run python -m pytest tests -m "not (sdp and (numerical or rust_smoke))"
+      - name: Build release distributions
+        run: uv build --no-sources
 
-      - name: Build distributions
-        run: uv build
+      - name: Verify release distributions
+        env:
+          PACKAGE_VERSION: ${{ steps.version.outputs.package_version }}
+        run: uv run --frozen --group dev python scripts/verify_release.py --version "$PACKAGE_VERSION"
 
-      - name: Check distributions
-        run: uv run twine check dist/*
+      - name: Smoke-test wheel and source distribution
+        env:
+          CVXGENRUST_RELEASE_VERSION: ${{ steps.version.outputs.package_version }}
+          CVXGENRUST_REPOSITORY_ROOT: ${{ github.workspace }}
+        run: |
+          for distribution in dist/*.whl dist/*.tar.gz; do
+            uv run --isolated --no-project --with "$distribution" -- python scripts/release_smoke.py
+          done
 
-      - name: Upload distributions
-        uses: actions/upload-artifact@v4
+      - name: Upload verified distributions
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: python-distributions
-          path: dist/
+          name: cvxgenrust-distributions-${{ steps.version.outputs.package_version }}
+          path: |
+            dist/*.whl
+            dist/*.tar.gz
           if-no-files-found: error
+          retention-days: 30
 
-  publish-pypi:
-    name: Publish to PyPI
-    needs: build
+      - name: Upload distribution checksums
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cvxgenrust-checksums-${{ steps.version.outputs.package_version }}
+          path: dist/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    name: Publish distributions to PyPI
+    needs: verify
     runs-on: ubuntu-latest
-    environment:
-      name: pypi
-      url: https://pypi.org/p/cvxgenrust
     permissions:
       id-token: write
+    environment:
+      name: pypi
+      url: https://pypi.org/project/cvxgenrust/${{ needs.verify.outputs.package_version }}/
 
     steps:
-      - name: Download distributions
-        uses: actions/download-artifact@v4
+      - name: Download verified distributions
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: python-distributions
-          path: dist/
+          name: cvxgenrust-distributions-${{ needs.verify.outputs.package_version }}
+          path: dist
 
-      - name: Publish package distributions to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+      - name: Publish distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+        with:
+          packages-dir: dist
+
+  attach-assets:
+    name: Attach distributions to GitHub Release
+    needs:
+      - verify
+      - publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download verified distributions
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: cvxgenrust-distributions-${{ needs.verify.outputs.package_version }}
+          path: assets
+
+      - name: Download distribution checksums
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: cvxgenrust-checksums-${{ needs.verify.outputs.package_version }}
+          path: assets
+
+      - name: Attach immutable release assets
+        env:
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$RELEASE_TAG" assets/*

@@ -189,17 +189,53 @@ impl AffineVectorMap {
     }
 }
 
-/// Metadata for one CVXPY parameter in the generated flattened parameter vector.
+/// Compact description of a CVXPY parameter's explicit sparsity pattern.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SparseParameterPattern {
+    /// Main-diagonal entries, in increasing diagonal-index order.
+    Diagonal,
+    /// Upper-triangular entries in NumPy `triu_indices` order (row by row).
+    UpperTriangle,
+    /// Lower-triangular entries in NumPy `tril_indices` order (row by row).
+    LowerTriangle,
+    /// Arbitrary entries with one column-major flat index per packed entry.
+    ///
+    /// For a matrix with `rows` rows, coordinate `(row, column)` has flat index
+    /// `row + rows * column`.
+    /// For higher-rank parameters, indices follow NumPy's Fortran-order ravel
+    /// convention (`numpy.ravel_multi_index(..., order="F")`).
+    Explicit { flat_indices: &'static [usize] },
+}
+
+/// Packing rule for one generated parameter block.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ParameterLayout {
+    /// Scalar, vector, or dense matrix values flattened in column-major order.
+    DenseColumnMajor,
+    /// Main-diagonal entries of a CVXPY parameter declared with `diag=True`.
+    Diagonal,
+    /// Upper-triangular entries of a symmetric, PSD, or NSD parameter.
+    ///
+    /// Entries follow NumPy's `triu_indices` order: row by row, including the
+    /// main diagonal.
+    SymmetricUpperTriangle,
+    /// Entries of a parameter declared with an explicit CVXPY sparsity pattern.
+    Sparse(SparseParameterPattern),
+}
+
+/// Metadata for one logical CVXPY parameter in the generated packed parameter vector.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ParameterInfo {
     /// Original CVXPY parameter name.
     pub name: &'static str,
     /// Original CVXPY parameter shape.
     pub shape: &'static [usize],
-    /// Number of flattened scalar entries.
+    /// Number of packed scalar entries stored by the generated solver.
     pub size: usize,
     /// Start offset in `CGRProblem::parameter_vector` before the trailing constant slot.
     pub offset: usize,
+    /// Rule mapping the logical CVXPY value to the packed scalar entries.
+    pub layout: ParameterLayout,
 }
 
 /// Metadata for one primal variable block in [`SolveResult::x`].

@@ -20,18 +20,46 @@ class GeneratedRustClarabel(CLARABEL):
         return "__SOLVER_METHOD_NAME__"
 
 
-def _flatten_parameter_value(value, pack=None) -> list[float]:
-    array = np.asarray(value)
-    if pack == "upper_tri" and array.ndim == 2:
-        rows, cols = array.shape
-        if rows != cols:
-            raise ValueError("upper-triangular parameter packing requires a square matrix")
-        return array[np.triu_indices(rows)].tolist()
-    return array.flatten(order="F").tolist()
-
-
 def _flatten_parameter(parameter, metadata) -> list[float]:
-    return _flatten_parameter_value(parameter.value, pack=metadata.get("pack"))
+    name = metadata["name"]
+    layout = metadata["layout"]
+
+    if layout.startswith("sparse_"):
+        sparse_value = parameter.value_sparse
+        if sparse_value is None:
+            raise ValueError(f"parameter {name!r} has no value")
+        packed = np.asarray(sparse_value.data).reshape(-1).tolist()
+    else:
+        value = parameter.value
+        if value is None:
+            raise ValueError(f"parameter {name!r} has no value")
+
+        if layout == "dense_column_major":
+            packed = np.asarray(value).flatten(order="F").tolist()
+        elif layout == "diagonal":
+            diagonal = (
+                value.diagonal()
+                if hasattr(value, "diagonal")
+                else np.asarray(value).diagonal()
+            )
+            packed = np.asarray(diagonal).reshape(-1).tolist()
+        elif layout == "symmetric_upper_triangle":
+            array = np.asarray(value)
+            if array.ndim != 2 or array.shape[0] != array.shape[1]:
+                raise ValueError(
+                    f"parameter {name!r} requires a square matrix for upper-triangle packing"
+                )
+            packed = array[np.triu_indices(array.shape[0])].tolist()
+        else:
+            raise ValueError(f"parameter {name!r} has unknown generated layout {layout!r}")
+
+    expected_size = metadata["size"]
+    if len(packed) != expected_size:
+        raise ValueError(
+            f"parameter {name!r} packed to {len(packed)} entries using layout {layout!r}; "
+            f"expected {expected_size}"
+        )
+    return packed
 
 
 def _get_parameter_values(problem) -> dict[str, list[float]]:
@@ -85,10 +113,16 @@ def _get_cached_reduction(problem, solver_opts):
     if cached is not None and cached[0] == cache_key:
         return cached[1], cached[2]
 
-    _, chain, inverse_data = problem.get_problem_data(
-        cp.CLARABEL,
-        solver_opts=solver_opts,
-    )
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            message=r"Reading from a sparse CVXPY expression via `\.value` is discouraged\..*",
+            category=RuntimeWarning,
+        )
+        _, chain, inverse_data = problem.get_problem_data(
+            cp.CLARABEL,
+            solver_opts=solver_opts,
+        )
     setattr(problem, "_cgr_cached_reduction", (cache_key, chain, inverse_data))
     return chain, inverse_data
 
@@ -123,6 +157,12 @@ def cgr_solve(problem, updated_params=None, **kwargs):
     if verbose:
         print(f"generated Rust solver status: {rust_result.status}")
 
-    problem.unpack_results(rust_result, chain, inverse_data)
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            message=r"Reading from a sparse CVXPY expression via `\.value` is discouraged\..*",
+            category=RuntimeWarning,
+        )
+        problem.unpack_results(rust_result, chain, inverse_data)
     problem._solver_stats = SolverStats.from_dict(problem._solution.attr, solver.name())
     return problem.value

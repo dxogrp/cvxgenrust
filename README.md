@@ -1,5 +1,7 @@
 # cvxgenrust
 
+[![CI](https://github.com/dxogrp/cvxgenrust/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/dxogrp/cvxgenrust/actions/workflows/ci.yml) [![PyPI](https://img.shields.io/pypi/v/cvxgenrust.svg)](https://pypi.org/project/cvxgenrust/) [![License](https://img.shields.io/github/license/dxogrp/cvxgenrust.svg)](https://github.com/dxogrp/cvxgenrust/blob/main/LICENSE)
+
 `cvxgenrust` takes a parameterized [CVXPY](https://www.cvxpy.org/)
 optimization problem and generates a Rust solver crate tailored to that problem
 family. The generated crate reconstructs canonical cone-program data and solves
@@ -61,9 +63,6 @@ You should always set `name=` on CVXPY parameters and variables. The generated R
 setters, extractors, metadata, and Python wrapper use those names after code
 generation.
 
-An HTML summary of the generated project is written to
-`nonneg_ls_cgr/README.html`.
-
 You can build and run the generated Rust project with:
 
 ```bash
@@ -74,6 +73,25 @@ cargo run --example solve
 By default, `generate_code` also compiles the generated Python extension wrapper
 into the generated project's `python/` directory. Pass `wrapper=False` to only
 write the Rust crate and Python wrapper sources.
+
+An HTML documentation of the generated project is written to
+`nonneg_ls_cgr/README.html`, where you can find more details of the generated
+code and usage examples.
+
+### Structured parameters
+
+cvxgenrust supports real dense, diagonal, symmetric, PSD, NSD, and explicitly
+sparse CVXPY parameters. Declaring invariant structure with `sparsity=` keeps
+known zero entries out of the generated canonical matrices; declaring the same
+parameter as dense can increase generated code size and solver work. The
+coordinates excluded by a parameter's `sparsity=`
+pattern must remain structural zeros for every update; use a dense parameter if
+any excluded entry may later become nonzero. Complex and Hermitian parameter
+layouts are not supported.
+
+Each generated `README.html` reports the logical shape, packed size, offset,
+layout, and exact Rust setter order for every parameter. Its generated Python
+example also shows how to assign values for that problem's layouts.
 
 ## Related projects
 

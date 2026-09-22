@@ -267,12 +267,50 @@ def _indent_rust_block(block: str, indent: str) -> str:
     return "\n".join(f"{indent}{line}" if line else line for line in block.splitlines())
 
 
-def _render_parameter_info(parameter: ParameterSpec, field_indent: str = "    ") -> str:
+def _render_parameter_layout(
+    parameter: ParameterSpec,
+    explicit_indices_static: str | None = None,
+    field_indent: str = "    ",
+) -> str:
+    kind = parameter.layout.kind
+    if kind == "dense_column_major":
+        return "ParameterLayout::DenseColumnMajor"
+    if kind == "diagonal":
+        return "ParameterLayout::Diagonal"
+    if kind == "symmetric_upper_triangle":
+        return "ParameterLayout::SymmetricUpperTriangle"
+    sparse_variants = {
+        "sparse_diagonal": "Diagonal",
+        "sparse_upper_triangle": "UpperTriangle",
+        "sparse_lower_triangle": "LowerTriangle",
+    }
+    if kind in sparse_variants:
+        return (
+            "ParameterLayout::Sparse(SparseParameterPattern::"
+            f"{sparse_variants[kind]})"
+        )
+    if kind == "sparse_explicit":
+        if explicit_indices_static is None:
+            raise ValueError("explicit sparse parameter layout requires a static index slice")
+        return (
+            "ParameterLayout::Sparse(SparseParameterPattern::Explicit {\n"
+            f"{field_indent}    flat_indices: {explicit_indices_static},\n"
+            f"{field_indent}}})"
+        )
+    raise ValueError(f"unsupported parameter layout: {kind!r}")
+
+
+def _render_parameter_info(
+    parameter: ParameterSpec,
+    field_indent: str = "    ",
+    explicit_indices_static: str | None = None,
+) -> str:
     return f"""ParameterInfo {{
 {field_indent}name: {_rust_string(parameter.name)},
 {field_indent}shape: {_rust_usize_slice(parameter.shape)},
 {field_indent}size: {parameter.size}usize,
 {field_indent}offset: {parameter.offset}usize,
+{field_indent}layout: {_render_parameter_layout(parameter, explicit_indices_static, field_indent)},
 }}"""
 
 
@@ -355,11 +393,34 @@ def _render_generated_data(spec: ProblemSpec, generated_at: str) -> str:
 
 
 def _render_generated_lib(spec: ProblemSpec, generated_at: str) -> str:
+    explicit_index_statics = []
+    rendered_parameters = []
+    for parameter in spec.parameters:
+        explicit_indices_static = None
+        if parameter.layout.kind == "sparse_explicit":
+            explicit_indices_static = (
+                f"{_rust_ident(parameter.name).upper()}_SPARSE_FLAT_INDICES"
+            )
+            explicit_index_statics.append(
+                _rust_static_usize_slice(
+                    explicit_indices_static,
+                    list(parameter.layout.flat_indices),
+                )
+            )
+        rendered_parameters.append(
+            _render_parameter_info(
+                parameter,
+                explicit_indices_static=explicit_indices_static,
+            )
+        )
+
     parameters_static = _render_rust_static_array(
         "PARAMETERS",
         "ParameterInfo",
-        [_render_parameter_info(parameter) for parameter in spec.parameters]
+        rendered_parameters,
     )
+    if explicit_index_statics:
+        parameters_static = "\n\n".join([*explicit_index_statics, parameters_static])
     variables_static = _render_rust_static_array(
         "VARIABLES",
         "VariableInfo",
@@ -377,8 +438,8 @@ def _render_generated_lib(spec: ProblemSpec, generated_at: str) -> str:
             f"""{_rustdoc_block("    ", [
                 f"Replaces parameter `{parameter.name}`.",
                 "",
-                f"Shape: {_shape_text(parameter.shape)}. Flattened size: {parameter.size}. Offset: {parameter.offset}.",
-                f"`value` must contain exactly {parameter.size} entries in CVXPY's flattened order.",
+                f"Shape: {_shape_text(parameter.shape)}. Packed size: {parameter.size}. Offset: {parameter.offset}.",
+                f"`value` must contain exactly {parameter.size} entries in the order described by `ParameterInfo::layout`.",
             ])}
     pub fn set_{ident}(&mut self, value: &[f64]) -> Result<(), RuntimeError> {{
         self.set_parameter({_rust_string(parameter.name)}, value)
@@ -387,7 +448,7 @@ def _render_generated_lib(spec: ProblemSpec, generated_at: str) -> str:
 {_rustdoc_block("    ", [
                 f"Updates one scalar entry of parameter `{parameter.name}`.",
                 "",
-                f"`index` is zero-based within the flattened {parameter.size}-entry parameter block at offset {parameter.offset}.",
+                f"`index` is zero-based within the packed {parameter.size}-entry parameter block at offset {parameter.offset}.",
             ])}
     pub fn update_{ident}(&mut self, index: usize, value: f64) -> Result<(), RuntimeError> {{
         self.update_parameter_entry({_rust_string(parameter.name)}, index, value)
@@ -571,15 +632,27 @@ def _render_generated_readme(
         shape_text = " x ".join(str(item) for item in shape)
         return f"{shape_text} ({size})" if size != math.prod(shape) else shape_text
 
+    def parameter_layout(kind: str) -> str:
+        return {
+            "dense_column_major": "dense column-major",
+            "diagonal": "diagonal",
+            "symmetric_upper_triangle": "symmetric upper triangle",
+            "sparse_diagonal": "sparse diagonal",
+            "sparse_upper_triangle": "sparse upper triangle",
+            "sparse_lower_triangle": "sparse lower triangle",
+            "sparse_explicit": "sparse explicit indices",
+        }[kind]
+
     parameter_rows = "\n".join(
         "          <tr>"
         f"<td><code>{code(parameter.name)}</code></td>"
         f"<td>{code(dimension(parameter.shape, parameter.size))}</td>"
         f"<td>{parameter.size}</td>"
         f"<td>{parameter.offset}</td>"
+        f"<td>{code(parameter_layout(parameter.layout.kind))}</td>"
         "</tr>"
         for parameter in spec.parameters
-    ) or '          <tr><td colspan="4">No parameters</td></tr>'
+    ) or '          <tr><td colspan="5">No parameters</td></tr>'
     variable_rows = "\n".join(
         "          <tr>"
         f"<td><code>{code(variable.name)}</code></td>"
@@ -627,6 +700,7 @@ println!("objective = {}", solution.obj_val);__VALUE_LINES__
     python_usage = _fill_template(
         """# Assume `problem` and the listed CVXPY parameters/variables are already defined.
 import numpy as np
+__SPARSE_IMPORT__
 from __PACKAGE_NAME__.cgr_solver import cgr_solve
 
 problem.register_solve("CGR", cgr_solve)
@@ -641,12 +715,23 @@ problem.solve(
 print(problem.status)
 """,
         PACKAGE_NAME=package_name,
+        SPARSE_IMPORT=(
+            "from scipy import sparse"
+            if any(parameter.layout.kind.startswith("sparse_") for parameter in spec.parameters)
+            else ""
+        ),
         PARAM_ASSIGNMENTS="\n".join(
-            f"{parameter.name}.value = "
-            + (
-                "0.0"
-                if parameter.size == 1
-                else f"np.zeros({repr(tuple(parameter.shape)) if len(parameter.shape) != 1 else f'({parameter.shape[0]},)'})"
+            (
+                f"{parameter.name}.value_sparse = sparse.coo_array("
+                f"(np.zeros({parameter.size}), {parameter.name}.sparse_idx), "
+                f"shape={parameter.name}.shape)"
+                if parameter.layout.kind.startswith("sparse_")
+                else f"{parameter.name}.value = "
+                + (
+                    "0.0"
+                    if not parameter.shape
+                    else f"np.zeros({parameter.shape!r})"
+                )
             )
             for parameter in spec.parameters
         ),
@@ -682,7 +767,7 @@ impl CGRProblem {
     // Flattened parameter vector in CVXPY canonical order, including the trailing constant slot.
     pub fn parameter_vector(&self) -> Vec<f64>;
 
-    // Generic and generated parameter setters. Entry updates use zero-based flattened indices.
+    // Generic and generated parameter setters. Entry updates use zero-based packed indices.
     pub fn set_parameter(&mut self, name: &str, value: &[f64]) -> Result<(), RuntimeError>;
     pub fn update_parameter_entry(&mut self, name: &str, index: usize, value: f64) -> Result<(), RuntimeError>;
 __GENERATED_SETTERS__
@@ -745,7 +830,7 @@ def _render_generated_python_wrapper(spec: ProblemSpec, generated_at: str) -> st
                 shape=list(parameter.shape),
                 size=parameter.size,
                 offset=parameter.offset,
-                pack=parameter.pack,
+                layout=parameter.layout.kind,
             )
         )
         for parameter in spec.parameters

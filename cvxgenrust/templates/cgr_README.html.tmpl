@@ -258,7 +258,7 @@
       <div class="info-box">
         <h3>Parameters</h3>
         <table>
-          <tr><th>Name</th><th>Dimension</th><th>Size</th><th>Offset</th></tr>
+          <tr><th>Name</th><th>Dimension</th><th>Size</th><th>Offset</th><th>Layout</th></tr>
 __PARAMETER_ROWS__
         </table>
       </div>
@@ -277,6 +277,16 @@ __DUAL_VARIABLE_ROWS__
         </table>
       </div>
     </div>
+    <p>The following rules describe how to order parameter values when calling the generated Rust setters; the Python wrapper performs this packing automatically from CVXPY <code>.value</code> or <code>.value_sparse</code> assignments.</p>
+    <p>Parameter dimensions are the original logical CVXPY shapes. A parameter's size is its packed storage length, which may be smaller than the product of its dimensions. Rust setters require exactly that many entries; <code>ParameterInfo.layout</code> describes their order.</p>
+    <ul>
+      <li>Dense parameters, vectors, and scalars use column-major (<code>numpy.flatten(order="F")</code>) order.</li>
+      <li>Diagonal parameters use the main diagonal from top-left to bottom-right.</li>
+      <li>Symmetric, PSD, and NSD parameters use the upper triangle in <code>numpy.triu_indices(n)</code> order.</li>
+      <li>Parameters declared with CVXPY's <code>sparsity=</code> attribute use canonical <code>parameter.sparse_idx</code> order. Exact diagonal and triangular patterns have compact metadata; arbitrary patterns expose one Fortran-flat index per packed entry.</li>
+    </ul>
+    <p>For direct Rust setters, an arbitrary sparse layout is represented by <code>SparseParameterPattern::Explicit { flat_indices }</code>. For a matrix with <code>rows</code> rows, coordinate <code>(row, column)</code> has flat index <code>row + rows * column</code>. Higher-rank parameters follow NumPy's Fortran-order convention, <code>numpy.ravel_multi_index(..., order="F")</code>.</p>
+    <p>The generated Python wrapper applies these rules automatically and validates each packed length, so Python callers do not construct flat indices themselves. For a sparse parameter, assign through <code>parameter.value_sparse</code>; the wrapper consumes <code>parameter.value_sparse.data</code> without densifying it.</p>
     <p>Dual blocks are slices of the canonical solver dual vector <code>SolveResult.z</code>. They may not be identical to original CVXPY constraint dual values when CVXPY splits a constraint during canonicalization.</p>
   </section>
 
@@ -321,7 +331,7 @@ __DUAL_VARIABLE_ROWS__
         <div class="file-note"><strong>src/runtime.rs</strong><p>Reusable generated runtime support: sparse matrix containers, canonical problem data, solve results, error types, and affine-map helpers.</p></div>
         <div class="file-note"><strong>src/data.rs</strong><p>Problem-specific static sparse canonicalization data and constructors used by <code>CGRProblem::canonical_cone_prob</code>.</p></div>
         <div class="file-note"><strong>examples/solve.rs</strong><p>Runnable Rust example that initializes placeholder parameter values, solves the problem, and prints the status, objective, and first variable.</p></div>
-        <div class="file-note"><strong>python/__PACKAGE_NAME_TEXT__/cgr_solver.py</strong><p>CVXPY custom solve method. It flattens updated parameters, forwards supported Clarabel settings, calls the compiled PyO3 solve function, and unpacks results back through CVXPY.</p></div>
+        <div class="file-note"><strong>python/__PACKAGE_NAME_TEXT__/cgr_solver.py</strong><p>CVXPY custom solve method. It packs updated parameters according to their generated layouts, validates packed lengths, forwards supported Clarabel settings, calls the compiled PyO3 solve function, and unpacks results back through CVXPY.</p></div>
       </div>
     </div>
   </section>

@@ -1,3 +1,4 @@
+import re
 import tempfile
 from pathlib import Path
 
@@ -30,7 +31,7 @@ class GeneratedDocsTests(GeneratedCodeTestCase):
 
             self.assertIn("/// Generated solver handle for this CVXPY problem.", lib_text)
             self.assertIn("/// Replaces parameter `A`.", lib_text)
-            self.assertIn("/// Shape: 3 x 2. Flattened size: 6. Offset: 0.", lib_text)
+            self.assertIn("/// Shape: 3 x 2. Packed size: 6. Offset: 0.", lib_text)
             self.assertIn("pub fn set_a", lib_text)
             self.assertIn("/// Updates one scalar entry of parameter `A`.", lib_text)
             self.assertIn("pub fn update_a", lib_text)
@@ -61,6 +62,15 @@ class GeneratedDocsTests(GeneratedCodeTestCase):
             self.assertIn('method="CGR"', readme_text)
             self.assertIn("updated_params", readme_text)
             self.assertIn("<td>3 x 2</td>", readme_text)
+            assignment_targets = set(
+                re.findall(
+                    r"(?m)^[ \t]*([A-Za-z_]\w*)\.(value(?:_sparse)?)\s*=",
+                    readme_text,
+                )
+            )
+            self.assertEqual(assignment_targets, {("A", "value"), ("b", "value")})
+            self.assertNotIn("from scipy import sparse", readme_text)
+            self.assertNotRegex(readme_text, r"__[A-Z][A-Z0-9_]*__")
             self.assertIn("cargo run --example solve", readme_text)
             self.assertIn("cargo doc --open", readme_text)
             self.assertIn("Cargo Dependency", readme_text)
@@ -68,7 +78,7 @@ class GeneratedDocsTests(GeneratedCodeTestCase):
             self.assertIn("let solution = problem.solve()?;", readme_text)
             self.assertIn("Interface Reference", readme_text)
             self.assertIn("SolveResult", readme_text)
-            self.assertIn("Entry updates use zero-based flattened indices", readme_text)
+            self.assertIn("Entry updates use zero-based packed indices", readme_text)
             self.assertIn("Canonical Dual Blocks", readme_text)
             self.assertIn("src/runtime.rs", readme_text)
             self.assertIn("src/data.rs", readme_text)
@@ -82,3 +92,33 @@ class GeneratedDocsTests(GeneratedCodeTestCase):
             self.assertIn("let solution = problem.solve_with_settings(settings)?;", readme_text)
             self.assertIn("max_iter=100", readme_text)
             self.assertIn("pub fn extract_x", readme_text)
+
+    def test_generated_python_example_adapts_to_sparse_parameters(self):
+        fixture = self._build_structured_parameter_problem()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_dir = Path(tmpdir) / "structured_parameters_cgr"
+            cgr.generate_code(
+                fixture.problem,
+                code_dir=output_dir,
+                module_name="structured_parameters",
+                wrapper=False,
+            )
+
+            readme_text = (output_dir / "README.html").read_text(encoding="utf-8")
+
+            assignment_targets = set(
+                re.findall(
+                    r"(?m)^[ \t]*([A-Za-z_]\w*)\.(value(?:_sparse)?)\s*=",
+                    readme_text,
+                )
+            )
+            self.assertEqual(
+                assignment_targets,
+                {
+                    ("L", "value_sparse"),
+                    ("S", "value_sparse"),
+                    ("D", "value"),
+                    ("b", "value"),
+                },
+            )
+            self.assertIn("from scipy import sparse", readme_text)
